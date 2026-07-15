@@ -1,0 +1,283 @@
+# JohnnyCx86 — Johnny Castaway 2026
+
+Johnny Castaway 2026 Edition is a Go/Raylib port developed from
+[deckarep/Johnny-Castaway-2026-Public](https://github.com/deckarep/Johnny-Castaway-2026-Public),
+which in turn ports [jc_reborn](https://github.com/jno6809/jc_reborn). The local
+Git history includes deckarep's work through merge commit `ba5ae61`; this Windows
+branch extends that baseline with stability, diagnostics, display, and packaging
+work. Both upstream projects must retain clear attribution.
+
+### How it's built
+
+The Windows application is written in Go and uses Raylib for graphics and
+audio. Sierra/Dynamix archives and sounds are loaded from a user-selected local
+folder and are never embedded in the executable or repository. See
+[Data-file and copyright policy](#data-file-and-copyright-policy).
+The upstream roadmap also identifies macOS, Linux, and WebAssembly as possible
+targets. Raylib uses native platform libraries through CGO here, so those are
+future ports requiring their own build, input, audio, and screensaver integration
+rather than guaranteed one-command cross-compiles.
+
+### Windows 11 x64 build
+
+Run `build\build.bat` from a Command Prompt to create the latest executable at
+`build\JohnnyCastaway-x64.exe` and a timestamped copy under `build\history\`.
+Timestamped names use `JohnnyCastaway-x64-YYYYMMDD-HHMMSS-mmm.exe`; previous
+copies are retained so different builds can be tested side by side. The build requires 64-bit Go in
+`C:\Program Files\Go` and the MSYS2
+`mingw-w64-x86_64-gcc` toolchain in `C:\msys64\mingw64`. The script generates
+the amd64 Windows resource object, builds a PE32+ GUI executable, and removes
+the temporary object. The executable requires the user's original data folder
+at runtime. Set `MSYS2_ROOT` before running the scripts when MSYS2 is installed
+somewhere other than `C:\msys64`; the CI workflow uses this portable path.
+
+Files required for the x64 build are kept in the repository root plus:
+
+* `assets/` - optional ignored local folder for user-supplied archives and sounds
+* `build/` - build script, Windows manifest/version/icon resources, and output
+
+Windows command-line options:
+
+* `--windowed` - run in a resizable window instead of borderless fullscreen
+* `--fullscreen` - override a saved windowed preference
+* `--monitor N` - select a monitor using a 1-based number
+* `--screensaver` - use screensaver input behavior while retaining the documented
+  F-key and playback controls
+* `--mute` - disable audio
+* `--sound` - override a saved muted preference
+* `--stretch` - stretch 4:3 graphics instead of preserving their aspect ratio
+* `--fit` - override a saved stretch preference and preserve 4:3
+* `--ttm NAME.TTM` - play one TTM resource directly for comparison or testing
+* `--menu` - open the otherwise hidden menu immediately (useful for testing)
+* `--crt MODE` - override CRT mode with `off`, `lightweight`, `fast`, or `lottes`
+* `--data-dir PATH` - folder containing the original `RESOURCE.MAP`,
+  `RESOURCE.001`, and any optional `sound*.wav` files; the selected path persists
+
+Double-click `build\JohnnyCastaway-x64.exe` to test the finished application.
+Press `F1` for the settings and complete key guide. Press `Esc` twice within
+1.5 seconds to quit; the first press also closes an open menu or runtime log.
+The screensaver footer shows the available controls for ten seconds whenever a
+recognized control is used, so the README does not duplicate the full shortcut list.
+The menu can select Full Story or any embedded TTM, and can advance to the next
+TTM or internal `SET_SCENE` tag without recreating the application window.
+After a change, a short on-screen notification shows the exact TTM now running.
+Content changes retain the same application window and graphics context: the
+borderless fullscreen surface no longer closes, flashes the desktop, or repeats
+the startup fade when switching between Full Story and individual TTMs. Only
+content-owned scene layers, sprite slots, and currently playing sounds reset.
+
+The runtime diagnostics panel combines decoded TTM and ADS instructions and
+offers a complete ADS script view with the executing condition/instruction
+highlighted. Its visible controls provide search, source filters, capture pause,
+scrolling, copy, timestamped export, and history clearing.
+
+The settings include a holiday preview that cycles through `Halloween`,
+`St. Patrick`, `Christmas`, `New Year`, and `Automatic (calendar)` without
+changing the system clock. The preview applies
+immediately and remains active across Full Story scene changes until the cycle
+returns to automatic date selection.
+
+The menu also contains live CRT, scene-order, image-scaling, Fast CRT
+sharpness, performance-HUD, and shader-benchmark controls.
+
+`In order` still observes the story's day and scene compatibility rules, but
+chooses the next eligible scene in the original scene table instead of randomly.
+The renderer first composites the scene at its native 640x480 resolution.
+Nearest and bilinear scale that completed frame directly; Scale2x applies its
+edge-aware rules to a sharp 1280x960 intermediate before final monitor scaling.
+CRT remains an independent display setting. These settings persist
+between runs. The settings header and error dialogs show the product/build ID.
+
+Normal window/fullscreen mode, mute, stretch/4:3 fit, and monitor selection also
+persist between sessions. A command-line option explicitly supplied for the new
+session takes precedence over the saved value; use `--fullscreen`, `--sound`, or
+`--fit` to reverse saved boolean choices. Screensaver launches remain fullscreen
+unless `--windowed` is explicitly supplied and do not overwrite the normal
+window preference.
+
+The `Lottes` setting is a Raylib GLSL 330 port of Timothy Lottes' public-domain
+single-pass CRT shader. It adds brightness-shaped scanlines, horizontal beam
+filtering, a small bloom, an RGB shadow mask, gamma conversion, and subtle tube
+curvature. Lottes works from the native completed frame and performs its own
+resampling; the selected Nearest/Bilinear/Scale2x mode resumes when CRT is Off
+or Lightweight. If the GPU cannot compile Lottes, the application logs the
+failure and uses Lightweight automatically.
+
+The original `Fast` mode uses one inexpensive Raylib-native pass with manual
+sharp interpolation, brightness-dependent scanline width, gamma-aware shading,
+and a three-column RGB aperture grille. It always consumes the native completed
+frame, like Lottes, and performs its own scaling. `F7` changes its sharpness
+without changing CRT mode, and the selected preset persists between sessions.
+Shader compilation failure falls back to Lightweight.
+
+Changing CRT mode, scaling mode, or Fast CRT sharpness displays the performance
+HUD for ten seconds. `F8` pins it across sessions. It reports actual FPS against
+the 30 FPS target, CPU frame-submission time, percentage of the 33.3 ms CPU
+budget, active modes, output resolution, measured CPU impact, and the expected
+relative GPU cost. The settings panel also shows the comparison guide:
+`Off: Minimal`, `Lightweight: Very low`, `Fast: Low`, and `Lottes: High`.
+GPU shader execution is asynchronous, so CPU submission time is labeled
+separately and is not presented as a false uncapped-GPU FPS estimate.
+
+`F9` runs a sixteen-second comparison without stopping playback: Off,
+Lightweight, Fast, and Lottes are each measured for four seconds. The original
+CRT mode is restored afterward and the result table remains visible for twenty
+seconds. Run fullscreen on the target monitor—for example with `--monitor N`
+and `--fullscreen`—to collect meaningful native 4K or Neo G9 results.
+
+Borderless fullscreen and screensaver modes use the selected monitor's native
+size and origin, including 5120x1440 and 7680x2160 Samsung Odyssey Neo G9-class
+32:9 displays. The default aspect-preserving mode centers the original 4:3
+artwork with opaque black pillarboxes; `--stretch` remains available when filling
+the entire panel is preferred. Multi-monitor placement and cursor hiding remain
+active in screensaver mode.
+
+In screensaver mode, the settings and runtime overlays remain interactive while
+the animation continues behind them. Menu navigation, runtime-log navigation,
+and mouse interaction over an open overlay do not close the screensaver.
+Unlisted input retains normal screensaver exit behavior; Escape follows the
+same two-press quit rule as the desktop application.
+
+At screensaver startup, a compact footer displays the controls plus the live
+CRT, scene-order, and scaling selections. It remains fully visible for eight
+seconds, fades during the next two seconds, and then disappears without pausing
+the animation. Pressing any recognized screensaver control reveals the footer
+for another ten seconds.
+
+CRT-Royale remains a future experimental option rather than a selectable mode.
+The maintained [reference preset](https://github.com/libretro/slang-shaders/blob/master/crt/crt-royale.slangp)
+uses 12 rendering passes and six mask LUTs; even
+[CRT-Royale Fast](https://github.com/libretro/slang-shaders/blob/master/crt/crt-royale-fast.slangp)
+uses eight passes and three LUTs. Those libretro `.slangp` pipelines require a
+Raylib/OpenGL port and performance testing at 4K and dual-4K. The current
+scanline/vignette overlay remains the inexpensive, broadly compatible default.
+
+Run `build\test.bat` from a Command Prompt to execute the automated regression
+suite with the same Go and MSYS2 CGO toolchain used by the x64 build. Run
+`powershell -ExecutionPolicy Bypass -File build\stability_sweep.ps1` for the
+longer interactive sweep across every embedded TTM and Full Story.
+
+The `Windows x64` GitHub Actions workflow performs the same archive
+verification and regression suite on a Windows 2025 runner, installs the
+MinGW64 CGO toolchain, builds the GUI executable, verifies its Go metadata is
+`windows/amd64`, and uploads the executable as a 14-day workflow artifact.
+
+The application log in `%LOCALAPPDATA%\JohnnyCastaway` starts each session with
+the product version and build revision. At 1 MiB it rotates to
+`JohnnyCastaway.log.1`, keeping current failures separate from stale history.
+
+Original `.SCR` backgrounds shorter than 640x480 are padded to the full canvas
+using their dominant bottom-edge color. Source artwork is not stretched, and
+sprite coordinates remain aligned with the original scene.
+
+### Data-file and copyright policy
+
+The public source and its new Git history exclude the original archives, sounds,
+and generated executables. Local data paths are ignored by Git.
+
+> This repository contains no Sierra data files, takes no position on where
+> users obtain them, and provides no copies. The data files remain
+> Sierra/Dynamix intellectual property.
+
+The screensaver requires the original `RESOURCE.MAP`
+and `RESOURCE.001` from the 1992 Sierra/Dynamix release; sound will be optional.
+Users copy those files into a folder of their choosing and select it with
+`--data-dir`; a graphical configure screen remains planned. The application
+verifies supported files by hash and does not provide, download, or link to copies.
+
+For reference, the canonical archive hashes are:
+
+### Tested Files
+* `RESOURCE.001` - `md5: 8bb6c99e9129806b5089a39d24228a36`
+* `RESOURCE.MAP` - `md5: 374e6d05c5e0acd88fb5af748948c899`
+
+These are the only game-data archives accepted by the application. They are
+loaded from the selected external directory and rejected when either MD5 differs.
+When a developer supplies them locally, the test suite verifies both hashes and
+decompresses every resource; data-dependent tests skip in a clean public clone.
+Narrow
+RLE/LZW bounds guards turn truncated or structurally invalid data into a clear
+resource error instead of an index-out-of-range failure.
+
+The Apple Silicon macOS application bundle built from this project was also
+checked byte-for-byte. Its embedded `RESOURCE.MAP` and `RESOURCE.001` are the
+same files with the same hashes; it is not an alternate resource set.
+
+### Resource types
+* `.BMP` = used for sprites (4bits per pixel, color indexed (16 color max))
+* `.SCR` = used for backgrounds (4bits per pixel, color indexed (16 color max))
+* `.ADS` = scene level orchestration (higher level)
+* `.TTM` = animation sequencing scripts (lower level)
+* `.PAL` = color palette - this game only used up to 16 colors
+* `.WAV` = audio - but this engine just references extracted .wav files and plays them
+
+### Known missing original resources
+
+`FIRE.TTM` references `FLAME.BMP` and `FLURRY.BMP`, but neither file exists in
+any of the verified original resource archives used by this project. The same
+files are also absent from the archive published by Castaway Viewer, and the
+known public C, C++, and Go implementations contain references but no bitmap
+data for either resource.
+
+`FIRE.BMP` and `FIRE1.BMP` are present, but they contain different sprite sets
+and are not valid replacements for the missing files. They are intentionally
+left unchanged rather than aliased or reconstructed. The engine skips the two
+missing sprite loads, allowing `FIRE.TTM` and full-story playback to continue
+without those visual effects. The separate fire-making sequence in
+`MJFIRE.TTM`, orchestrated by `BUILDING.ADS`, has all of its required resources.
+
+### Implementations and information points
+
+* [deckarep/Johnny-Castaway-2026-Public](https://github.com/deckarep/Johnny-Castaway-2026-Public)
+  — direct upstream for this Go/Raylib branch. It supplies the original port
+  history, canonical archive hashes, resource-type notes, desktop/WASM goals,
+  and a macOS menu-bar idle-timeout screensaver concept. Its final timing fix
+  and larger fade radius are already present locally. Its tracked WAV files and
+  lack of a declared repository license are not a basis for redistribution;
+  the release gates above still apply.
+  The [upstream pull-request index](https://github.com/deckarep/Johnny-Castaway-2026-Public/pulls)
+  provides additional development history; merged PR #1 is already included in
+  this branch's ancestry.
+* [jno6809/jc_reborn](https://github.com/jno6809/jc_reborn) — C implementation
+  on which this Go port is based.
+* [tallPete/JohnnyCastaway](https://github.com/tallPete/JohnnyCastaway) — native
+  Swift 6/macOS screensaver organized as resource, engine, Metal renderer, and
+  screensaver packages. Its current README reports 104 engine tests and 11
+  renderer tests, external user-supplied Sierra data, and GPL-3.0 licensing.
+  Its fixes provide regression ideas for 10 TTM slots, multi-hour CPU behavior,
+  clipping, scene-start flicker, cloud placement, settings persistence, and
+  main-monitor-only audio.
+* [vasartori/jhonny-castaway-screensaver](https://github.com/vasartori/jhonny-castaway-screensaver)
+  — Linux/XScreenSaver approach that embeds `mpv`, selects randomized offsets,
+  separates day/night ranges, and uses a December video variant.
+* [11-hour Johnny Castaway recording](https://www.youtube.com/watch?v=l8D6qppreiI)
+  — long-run visual, scene-order, timing, and day/night comparison point. It is
+  not a source of data files for this project.
+* [castaway.xesf.net](https://castaway.xesf.net/) — appearance and behavior
+  comparison point for the browser presentation.
+* [alexbevi/xbak](https://github.com/alexbevi/xbak) — GPL-3.0 historical Sierra
+  resource/archive tooling reference; useful for comparing parsing assumptions,
+  not as a source of Johnny Castaway assets.
+* [bailli/Johnny](https://github.com/bailli/Johnny) — C++ implementation.
+* [ScummVM DGDS engine](https://github.com/scummvm/scummvm/tree/master/engines/dgds)
+  — related instruction semantics, but not a Johnny Castaway implementation.
+
+### Interpreter references
+ScummVM has some more comprehensive implementation of ADS and TTM instruction set, but it's
+a superset of Johnny's instruction set. The compatible buffer-copy and ADS
+condition semantics are adapted here where Johnny's embedded scripts use them,
+including `DRAW_SCREEN`, AND/OR blocks, `IF_NOT_PLAYED`, asynchronous
+`IF_FINISHED`, and the one `WHILE_RUNNING` continuation in `ACTIVITY.ADS`.
+
+### Project status
+
+See [`TODO.md`](TODO.md) for the completed work, confirmed remaining problems,
+and the prioritized plan for the next development session.
+
+### License
+
+The engine source and modifications are distributed under GNU GPL version 3 or
+later; see [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md). This license does
+not cover or grant rights to Sierra/Dynamix data, artwork, scripts, or sounds,
+none of which are included in the public source repository.
+

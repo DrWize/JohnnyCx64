@@ -1,0 +1,60 @@
+name: Windows x64
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install MinGW64
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          install: mingw-w64-x86_64-gcc
+
+      - name: Run regression suite
+        shell: cmd
+        env:
+          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: build\test.bat
+
+      - name: Build Windows x64 application
+        shell: cmd
+        env:
+          MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
+        run: build\build.bat
+
+      - name: Verify build architecture
+        shell: pwsh
+        run: |
+          $output = & go version -m build\JohnnyCastaway-x64.exe 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0 -or $output -notmatch 'GOOS=windows' -or $output -notmatch 'GOARCH=amd64') {
+            throw "Unexpected executable metadata:`n$output"
+          }
+          $output
+
+      - name: Upload executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: JohnnyCastaway-Windows-x64
+          path: build/JohnnyCastaway-x64.exe
+          if-no-files-found: error
+          retention-days: 14

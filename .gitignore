@@ -1,0 +1,14 @@
+.DS_Store
+.idea/
+JohnnyCastaway2026
+
+original_c
+assets_old
+inspect
+resource_windows_*.syso
+/build/JohnnyCastaway-x64.exe
+/build/history/
+/assets/RESOURCE.MAP
+/assets/RESOURCE.001
+/resources/*.wav
+/build/windows/johnny.ico

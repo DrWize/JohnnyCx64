@@ -1,0 +1,290 @@
+package main
+
+import (
+	"fmt"
+	"math/rand"
+)
+
+var (
+	storyCurrentDay       int = 1
+	storyMode                 = storyPlaybackRandom
+	storySequentialCursor     = 0
+)
+
+type storyPlaybackMode int
+
+const (
+	storyPlaybackRandom storyPlaybackMode = iota
+	storyPlaybackInOrder
+)
+
+func storyPlaybackModeLabel() string {
+	if storyMode == storyPlaybackInOrder {
+		return "In order"
+	}
+	return "Random"
+}
+
+func storyTogglePlaybackMode() {
+	if storyMode == storyPlaybackRandom {
+		storyMode = storyPlaybackInOrder
+		storySequentialCursor = 0
+	} else {
+		storyMode = storyPlaybackRandom
+	}
+	persistDisplayPlaybackSettings()
+}
+
+func storySceneEligible(scene *TStoryScene, wantedFlags uint16, unwantedFlags uint16) bool {
+	flags := uint16(scene.flags)
+	return (flags&wantedFlags) == wantedFlags &&
+		(flags&unwantedFlags) == 0 &&
+		(scene.dayNo == 0 || scene.dayNo == storyCurrentDay)
+}
+
+func storyPickScene(wantedFlags uint16, unwantedFlags uint16) *TStoryScene {
+	var scenes [NUM_SCENES]int
+	var numScenes = 0
+
+	for i := 0; i < NUM_SCENES; i++ {
+		scene := &storyScenes[i]
+		if storySceneEligible(scene, wantedFlags, unwantedFlags) {
+			scenes[numScenes] = i
+			numScenes++
+		}
+	}
+
+	if numScenes == 0 {
+		panic(fmt.Sprintf("no story scene matches wanted flags %#x and unwanted flags %#x", wantedFlags, unwantedFlags))
+	}
+
+	if storyMode == storyPlaybackInOrder {
+		for step := 0; step < NUM_SCENES; step++ {
+			index := (storySequentialCursor + step) % NUM_SCENES
+			if storySceneEligible(&storyScenes[index], wantedFlags, unwantedFlags) {
+				storySequentialCursor = (index + 1) % NUM_SCENES
+				return &storyScenes[index]
+			}
+		}
+	}
+
+	return &storyScenes[scenes[rand.Intn(numScenes)]]
+}
+
+func storyUpdateCurrentDay() {
+	var (
+		config     TConfig
+		today      int
+		hasChanged bool
+	)
+
+	cfgFileRead(&config)
+	today = getDayOfYear()
+
+	if today != config.CurrentDate {
+		fmt.Println("System date has changed since last sequence -> next day of the story")
+		config.CurrentDate = today
+		config.CurrentDay += 1
+		hasChanged = true
+	}
+
+	if config.CurrentDay < 1 || config.CurrentDay > 11 {
+		config.CurrentDay = 1
+		hasChanged = true
+	}
+
+	if hasChanged {
+		cfgFileWrite(&config)
+	}
+
+	storyCurrentDay = config.CurrentDay
+	fmt.Printf("The day of the story is: %d\n", storyCurrentDay)
+}
+
+func storyCalculateIslandFromDateAndTime() {
+	// Night ?
+	hour := getHour()
+	if hour < 6 || hour >= 18 {
+		islandState.night = 1
+	}
+
+	// Holidays ? A manual H-key preview overrides the calendar until the cycle
+	// returns to Automatic.
+	islandState.holiday = storyHolidayForCurrentDate()
+	if islandHolidayOverride != -1 {
+		islandState.holiday = islandHolidayOverride
+	}
+}
+
+func storyHolidayForCurrentDate() int {
+	month, day := getMonthAndDay()
+
+	if month == 10 && (day >= 29 && day <= 31) {
+		// Halloween : 29/10 to 31/10
+		return 1
+	} else if month == 3 && (day >= 15 && day <= 17) {
+		// St Patrick: 15/03 to 17/03
+		return 2
+	} else if month == 12 && (day >= 23 && day <= 25) {
+		// Christmas : 23/12 to 25/12
+		return 3
+	} else if (month == 12 && day >= 29) || (month == 1 && day == 1) {
+		// New year  : 29/12 to 01/01
+		return 4
+	}
+	return 0
+}
+
+func storyCalculateIslandFromScene(scene *TStoryScene) {
+	// Low tide ?
+	if (scene.flags&LOWTIDE_OK == LOWTIDE_OK) && (rand.Int()%2 != 0) {
+		islandState.lowTide = 1
+	} else {
+		islandState.lowTide = 0
+	}
+
+	// Randomize the position of the island
+	if scene.flags&VARPOS_OK == VARPOS_OK {
+		if rand.Int()%2 != 0 {
+			islandState.xPos = -222 + (rand.Int() % 109)
+			islandState.yPos = -44 + (rand.Int() % 128)
+		} else if rand.Int()%2 != 0 {
+			islandState.xPos = -114 + (rand.Int() % 134)
+			islandState.yPos = -14 + (rand.Int() % 99)
+		} else {
+			islandState.xPos = -114 + (rand.Int() % 119)
+			islandState.yPos = -73 + (rand.Int() % 60)
+		}
+	} else {
+		if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
+			islandState.xPos = -272
+			islandState.yPos = 0
+		} else {
+			islandState.xPos = 0
+			islandState.yPos = 0
+		}
+	}
+
+	// How much of the raft was John able to build ?
+	if scene.flags&NORAFT == NORAFT {
+		islandState.raft = 0
+	} else {
+		switch storyCurrentDay {
+		case 0, 1, 2:
+			islandState.raft = 1
+		case 3, 4, 5:
+			islandState.raft = storyCurrentDay - 1
+		default:
+			islandState.raft = 5
+		}
+	}
+
+	// For scene VISITOR.ADS#3 (cargo), never display holiday items - or they
+	// will be drawn over the hull when it fills the screen at the end. This
+	// conforms to the behavior of the original - which, moreover, freezes
+	// the shore animation while we dont
+	if scene.flags&HOLIDAY_NOK == HOLIDAY_NOK {
+		islandState.holiday = 0
+	}
+}
+
+// main story entry point
+func storyPlay() {
+	var (
+		wantedFlags   = uint16(0)
+		unwantedFlags = uint16(0)
+	)
+
+	adsInit()
+	adsPlayIntro()
+
+	for {
+		storyUpdateCurrentDay()
+		storyCalculateIslandFromDateAndTime()
+		unwantedFlags = 0
+
+		finalScene := storyPickScene(FINAL, unwantedFlags)
+
+		if finalScene.flags&ISLAND == ISLAND {
+			storyCalculateIslandFromScene(finalScene)
+			adsInitIsland()
+		} else {
+			adsNoIsland()
+		}
+
+		prevSpot := -1
+		prevHdg := -1
+
+		if finalScene.flags&FIRST == 0 {
+			wantedFlags = 0
+			unwantedFlags |= FINAL
+
+			if islandState.lowTide != 0 {
+				wantedFlags |= LOWTIDE_OK
+			}
+
+			if islandState.xPos != 0 || islandState.yPos != 0 {
+				wantedFlags |= VARPOS_OK
+			}
+
+			// r.c. I think this logic is simply to pick the next scene's starting spot so that the walk animation
+			// will flow together (from one scene to the next...)
+			intermediateSceneCount := 10
+			if storyMode == storyPlaybackRandom {
+				intermediateSceneCount = 6 + rand.Intn(14)
+			}
+			for i := 0; i < intermediateSceneCount; i++ {
+				scene := storyPickScene(wantedFlags, unwantedFlags)
+
+				if prevSpot != -1 {
+					adsPlayWalk(prevSpot, prevHdg, scene.spotStart, scene.hdgStart)
+				}
+
+				var xOffset = 0
+				if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
+					xOffset = 272
+				}
+				ttmDx = islandState.xPos + xOffset
+				ttmDy = islandState.yPos
+
+				if scene.dayNo != 0 {
+					soundPlay(17)
+				}
+
+				adsPlay(scene.adsName, uint16(scene.adsTagNo))
+
+				unwantedFlags |= FIRST
+				prevSpot = scene.spotEnd
+				prevHdg = scene.hdgEnd
+			}
+		}
+
+		if prevSpot != -1 {
+			adsPlayWalk(prevSpot, prevHdg, finalScene.spotStart, finalScene.hdgStart)
+		}
+
+		if finalScene.flags&ISLAND == ISLAND {
+			xOffset := 0
+			if finalScene.flags&LEFT_ISLAND == LEFT_ISLAND {
+				xOffset = 272
+			}
+			ttmDx = islandState.xPos + xOffset
+			ttmDy = islandState.yPos
+		} else {
+			ttmDx = 0
+			ttmDy = 0
+		}
+
+		if finalScene.dayNo != 0 {
+			soundPlay(17)
+		}
+
+		adsPlay(finalScene.adsName, uint16(finalScene.adsTagNo))
+
+		grFadeOut()
+
+		if finalScene.flags&ISLAND == ISLAND {
+			adsReleaseIsland()
+		}
+	}
+}

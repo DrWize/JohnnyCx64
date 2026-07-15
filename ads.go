@@ -1,0 +1,893 @@
+package main
+
+import (
+	"fmt"
+	"math/rand"
+)
+
+const (
+	MaxRandomOps      = 10
+	MaxAdsChunks      = 100
+	MaxAdsChunksLocal = 1
+)
+
+const (
+	OP_ADD_SCENE  = 0
+	OP_STOP_SCENE = 1
+	OP_NOP        = 2
+)
+
+var (
+	adsChunks    [MaxAdsChunks]TAdsChunk
+	numAdsChunks = 0
+
+	adsChunksLocal    [MaxAdsChunksLocal]TAdsChunk
+	numAdsChunksLocal = 0
+
+	ttmBackgroundSlot TTtmSlot
+	ttmHolidaySlot    TTtmSlot
+	ttmCloudsSlot     TTtmSlot
+	ttmSlots          [MaxTTMSlots]TTtmSlot
+
+	ttmCloudsThread     TTtmThread
+	ttmBackgroundThread TTtmThread
+	ttmHolidayThread    TTtmThread
+	ttmThreads          [MaxTTMThreads]TTtmThread
+
+	adsTags    []TTtmTag
+	adsNumTags = 0
+
+	adsRandOps    [MaxRandomOps]TAdsRandOp
+	adsNumRandOps = 0
+
+	numThreads       = 0
+	adsStopRequested = 0
+	adsPlayedScenes  = make(map[adsSceneKey]bool)
+)
+
+type TAdsChunk struct {
+	scene  TAdsScene
+	offset uint32
+}
+
+type TAdsRandOp struct {
+	ttype    int
+	slot     uint16
+	tag      uint16
+	numPlays uint16
+	weight   uint16
+}
+
+type adsSceneKey struct {
+	slot uint16
+	tag  uint16
+}
+
+type adsConditionState struct {
+	active      bool
+	result      bool
+	pending     uint16
+	operatorSet bool
+}
+
+func (state *adsConditionState) add(result bool) {
+	if !state.active {
+		state.active = true
+		state.result = result
+	} else if state.operatorSet && state.pending == 0x1430 {
+		state.result = state.result || result
+	} else {
+		state.result = state.result && result
+	}
+	state.pending = 0
+	state.operatorSet = false
+}
+
+func (state *adsConditionState) setOperator(opcode uint16) {
+	state.pending = opcode
+	state.operatorSet = true
+}
+
+func (state *adsConditionState) shouldExecute() bool {
+	return !state.active || state.result
+}
+
+func (state *adsConditionState) reset() {
+	*state = adsConditionState{}
+}
+
+func adsLoad(data []byte, dataSize uint32, numTags uint16, tag uint16, tagOffset *uint32) {
+	var offset uint32 = 0
+	var args [10]uint16
+	var bookmarkingChunks = 0
+	var bookmarkingIfNotRunnings = 0
+
+	numAdsChunks = 0
+	numAdsChunksLocal = 0
+	*tagOffset = 0
+	adsNumTags = 0
+	adsTags = make([]TTtmTag, numTags)
+
+	for offset < dataSize {
+		opCode := peekUint16(data, &offset)
+
+		switch opCode {
+		case 0x1350: // IF_LASTPLAYED
+			if bookmarkingChunks != 0 {
+				bookmarkingIfNotRunnings = 0
+				peekUint16Block(data, &offset, args[:], 2)
+				adsChunks[numAdsChunks].scene.slot = args[0]
+				adsChunks[numAdsChunks].scene.tag = args[1]
+				adsChunks[numAdsChunks].offset = offset
+				numAdsChunks++
+			} else {
+				offset += 2 << 1
+			}
+		case 0x1360: // IF_NOT_RUNNING
+			// We only bookmark the IF_NOT_RUNNINGs
+			// preceding the first IF_LAST_PLAYED or IF_IS_RUNNING
+
+			if bookmarkingChunks != 0 && bookmarkingIfNotRunnings != 0 {
+				peekUint16Block(data, &offset, args[:], 2)
+				adsChunks[numAdsChunks].scene.slot = args[0]
+				adsChunks[numAdsChunks].scene.tag = args[1]
+				adsChunks[numAdsChunks].offset = offset
+				numAdsChunks++
+			} else {
+				offset += 2 << 1
+			}
+		case 0x1370: // IF_IS_RUNNING
+			bookmarkingIfNotRunnings = 0
+			offset += 2 << 1
+		case 0x1070:
+			offset += 2 << 1
+		case 0x1330:
+			offset += 2 << 1
+		case 0x1420:
+			offset += 0 << 1
+		case 0x1430:
+			offset += 0 << 1
+			// OR   // TODO : manage here if_lastplayed OK tags ?
+		case 0x1510:
+			offset += 0 << 1
+		case 0x1520:
+			offset += 0 << 1
+		case 0x2005:
+			offset += 4 << 1
+		case 0x2010:
+			offset += 3 << 1
+		case 0x2014:
+			offset += 0 << 1
+		case 0x3010:
+			offset += 0 << 1
+		case 0x3020:
+			offset += 1 << 1
+		case 0x30ff:
+			offset += 0 << 1
+		case 0x4000:
+			offset += 3 << 1
+		case 0xf010:
+			offset += 0 << 1
+		case 0xf200:
+			offset += 1 << 1
+		case 0xffff:
+			offset += 0 << 1
+		case 0xfff0:
+			offset += 0 << 1
+		default:
+			adsTags[adsNumTags].id = opCode
+			adsTags[adsNumTags].offset = offset
+			adsNumTags++
+			if opCode == tag {
+				*tagOffset = offset
+				bookmarkingChunks = 1
+				bookmarkingIfNotRunnings = 1
+			} else {
+				bookmarkingChunks = 0
+				bookmarkingIfNotRunnings = 0
+			}
+		}
+	}
+
+	if adsNumTags != int(numTags) {
+		fmt.Println("WARN: didn't find every tag in ADS data")
+	}
+
+	if *tagOffset == 0 {
+		fmt.Printf("WARN: ADS tag %d not found, starting from offset 0\n", tag)
+	}
+
+}
+
+func adsReleaseAds() {
+	// free(adsTags)
+}
+
+func adsFindTag(reqdTag uint16) uint32 {
+	var result uint32 = 0
+	i := 0
+
+	for result == 0 && i < adsNumTags {
+		if adsTags[i].id == reqdTag {
+			result = adsTags[i].offset
+		} else {
+			i++
+		}
+	}
+
+	if result == 0 {
+		fmt.Printf("WARN: ADS tag %d not found, returning offset 0000\n", reqdTag)
+	}
+	return result
+}
+
+func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
+	for i := 0; i < MaxTTMThreads; i++ {
+		ttmThread := &ttmThreads[i]
+
+		if ttmThread.isRunning == 1 {
+			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
+				fmt.Printf("WARN: (%d,%d) thread is already running - didn't add extra one\n", ttmSlotNo, ttmTag)
+				return
+			}
+		}
+	}
+
+	i := 0
+	for ttmThreads[i].isRunning != 0 {
+		i++
+	}
+
+	ttmThread := &ttmThreads[i]
+
+	ttmThread.ttmSlot = &ttmSlots[ttmSlotNo]
+	ttmThread.isRunning = 1
+	ttmThread.sceneSlot = ttmSlotNo
+	ttmThread.sceneTag = ttmTag
+	ttmThread.sceneTimer = 0
+	ttmThread.sceneIterations = 0
+	ttmThread.delay = 4
+	ttmThread.timer = 0
+	ttmThread.nextGotoOffset = 0
+	ttmThread.selectedBmpSlot = 0
+	ttmThread.fgColor = 0x0f
+	ttmThread.bgColor = 0x0f
+
+	if ttmSlotNo != 0 {
+		ttmThread.ip = ttmFindTag(&ttmSlots[ttmSlotNo], ttmTag)
+	} else {
+		ttmThread.ip = 0
+	}
+
+	if int16(arg3) < 0 {
+		ttmThread.sceneTimer = -(int16(arg3))
+	} else if int16(arg3) > 0 {
+		ttmThread.sceneIterations = arg3 - 1
+	}
+
+	ttmThread.ttmLayer = grNewLayer()
+	adsPlayedScenes[adsSceneKey{slot: ttmSlotNo, tag: ttmTag}] = true
+	numThreads++
+}
+
+func adsStopScene(sceneNo int) {
+	grFreeLayer(ttmThreads[sceneNo].ttmLayer)
+	ttmThreads[sceneNo].ttmLayer = nil
+	ttmThreads[sceneNo].isRunning = 0
+	numThreads--
+}
+
+func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16) {
+	for i := 0; i < MaxTTMThreads; i++ {
+		ttmThread := &ttmThreads[i]
+		if ttmThread.isRunning != 0 {
+			if ttmThread.sceneSlot == ttmSlotNo && ttmThread.sceneTag == ttmTag {
+				adsStopScene(i)
+			}
+		}
+	}
+}
+
+func isSceneRunning(ttmSlotNo, ttmTag uint16) int {
+	for i := 0; i < MaxTTMThreads; i++ {
+		ttmThread := &ttmThreads[i]
+		if ttmThread.isRunning == 1 &&
+			ttmThread.sceneSlot == ttmSlotNo &&
+			ttmThread.sceneTag == ttmTag {
+			return 1
+		}
+	}
+	return 0
+}
+
+func adsRandomPickOp() *TAdsRandOp {
+	totalWeight := 0
+	partialWeight := 0
+	res := 0
+
+	for i := 0; i < adsNumRandOps; i++ {
+		totalWeight += int(adsRandOps[i].weight)
+	}
+
+	a := rand.Intn(totalWeight)
+
+	for res = 0; res < adsNumRandOps; res++ {
+		partialWeight += int(adsRandOps[res].weight)
+		if a < partialWeight {
+			break
+		}
+	}
+	return &adsRandOps[res]
+}
+
+func adsRandomStart() {
+	adsNumRandOps = 0
+}
+
+func adsRandomAddScene(ttmSlotNo, ttmTag, numPlays, weight uint16) {
+	adsRandOps[adsNumRandOps].ttype = OP_ADD_SCENE
+	adsRandOps[adsNumRandOps].slot = ttmSlotNo
+	adsRandOps[adsNumRandOps].tag = ttmTag
+	adsRandOps[adsNumRandOps].numPlays = numPlays
+	adsRandOps[adsNumRandOps].weight = weight
+	adsNumRandOps++
+}
+
+func adsRandomStopSceneByTtmTag(ttmSlotNo, ttmTag, weight uint16) {
+	adsRandOps[adsNumRandOps].ttype = OP_STOP_SCENE
+	adsRandOps[adsNumRandOps].slot = ttmSlotNo
+	adsRandOps[adsNumRandOps].tag = ttmTag
+	adsRandOps[adsNumRandOps].numPlays = 0
+	adsRandOps[adsNumRandOps].weight = weight
+	adsNumRandOps++
+}
+
+func adsRandomNop(weight uint16) {
+	adsRandOps[adsNumRandOps].ttype = OP_NOP
+	adsRandOps[adsNumRandOps].slot = 0
+	adsRandOps[adsNumRandOps].tag = 0
+	adsRandOps[adsNumRandOps].numPlays = 0
+	adsRandOps[adsNumRandOps].weight = weight
+	adsNumRandOps++
+}
+
+func adsRandomEnd() {
+	if adsNumRandOps != 0 {
+		op := adsRandomPickOp()
+		switch op.ttype {
+		case OP_ADD_SCENE:
+			debugPrintf("RANDOM: chose ADD_SCENE %d %d...\n", op.slot, op.tag)
+			adsAddScene(op.slot, op.tag, op.numPlays)
+		case OP_STOP_SCENE:
+			debugPrintf("RANDOM: chose STOP_SCENE %d %d...\n", op.slot, op.tag)
+			adsStopSceneByTtmTag(op.slot, op.tag)
+		default:
+			debugPrintln("RANDOM: chose NOP")
+		}
+	} else {
+		debugPrintln("RANDOM: no operation to choose from")
+	}
+}
+
+func adsInit() {
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmInitSlot(&ttmSlots[i])
+	}
+
+	for i := 0; i < MaxTTMThreads; i++ {
+		ttmThreads[i].isRunning = 0
+		ttmThreads[i].timer = 0
+	}
+
+	grUpdateDelay = 0
+	ttmBackgroundThread.isRunning = 0
+	ttmHolidayThread.isRunning = 0
+	ttmCloudsThread.isRunning = 0
+	numThreads = 0
+	adsStopRequested = 0
+	adsPlayedScenes = make(map[adsSceneKey]bool)
+}
+
+func adsPlaySingleTtm(ttmName string) {
+	adsInit()
+	// A previous content session may have owned the holiday preview layer.
+	// Content switching releases that layer while retaining the Raylib window.
+	ttmHolidayThread.ttmLayer = nil
+	islandState.holiday = storyHolidayForCurrentDate()
+	if islandHolidayOverride != -1 {
+		islandState.holiday = islandHolidayOverride
+	}
+	islandRefreshHolidayLayer()
+	ttmLoadTTM(&ttmSlots[0], ttmName)
+	adsAddScene(0, 0, 0)
+	ttmThreads[0].ip = 0
+
+	for ttmThreads[0].ip < ttmSlots[0].dataSize {
+		ttmPlay(&ttmThreads[0])
+		ttmThreads[0].isRunning = 1
+		grUpdateDisplay(nil, ttmThreads[:], &ttmHolidayThread, nil)
+		grUpdateDelay = int(ttmThreads[0].delay)
+	}
+
+	adsStopScene(0)
+	ttmResetSlot(&ttmSlots[0])
+	if ttmHolidayThread.isRunning != 0 && ttmHolidayThread.ttmLayer != nil {
+		grFreeLayer(ttmHolidayThread.ttmLayer)
+	}
+	ttmHolidayThread.ttmLayer = nil
+	ttmHolidayThread.isRunning = 0
+}
+
+func adsPlayChunk(data []byte, dataSize, offset uint32) {
+	adsPlayChunkWithTrigger(data, dataSize, offset, false)
+}
+
+func adsPlayChunkWithTrigger(data []byte, dataSize, offset uint32, triggered bool) {
+	var (
+		opcode       uint16 = 0
+		args         [10]uint16
+		inRandBlock  = 0
+		continueLoop = 1
+		conditions   adsConditionState
+	)
+	if triggered {
+		conditions.add(true)
+	}
+
+	for continueLoop != 0 && offset < dataSize {
+		instructionOffset := offset
+		opcode = peekUint16(data, &offset)
+		traceRecordADSInstruction(instructionOffset)
+
+		switch opcode {
+
+		case 0x1070:
+			peekUint16Block(data, &offset, args[:], 2)
+			debugPrintf("WHILE_RUNNING %d %d\n", args[0], args[1])
+			endOffset := adsFindEndWhile(data, dataSize, offset)
+			if isSceneRunning(args[0], args[1]) != 0 {
+				// Johnny uses one empty WHILE_RUNNING block as a wait. Resume
+				// immediately after END_WHILE when that scene terminates.
+				if numAdsChunksLocal < MaxAdsChunksLocal {
+					adsChunksLocal[numAdsChunksLocal] = TAdsChunk{
+						scene:  TAdsScene{slot: args[0], tag: args[1]},
+						offset: endOffset,
+					}
+					numAdsChunksLocal++
+				}
+				continueLoop = 0
+			} else {
+				offset = endOffset
+			}
+		case 0x1330:
+			peekUint16Block(data, &offset, args[:], 2)
+			debugPrintf("IF_NOT_PLAYED %d %d\n", args[0], args[1])
+			conditions.add(!adsPlayedScenes[adsSceneKey{slot: args[0], tag: args[1]}])
+		case 0x1350:
+			peekUint16Block(data, &offset, args[:], 2)
+			debugPrintf("IF_FINISHED %d %d\n", args[0], args[1])
+			if triggered && conditions.operatorSet && conditions.pending == 0x1430 {
+				// A prior member of this OR chain triggered the chunk. The
+				// remaining asynchronous alternatives cannot make it false.
+				conditions.add(false)
+			} else {
+				continueLoop = 0
+			}
+		case 0x1360:
+			peekUint16Block(data, &offset, args[:], 2)
+			debugPrintf("IF_NOT_RUNNING %d %d\n", args[0], args[1])
+			conditions.add(isSceneRunning(args[0], args[1]) == 0)
+		case 0x1370:
+			peekUint16Block(data, &offset, args[:], 2)
+			debugPrintf("IF_IS_RUNNING %d %d\n", args[0], args[1])
+			conditions.add(isSceneRunning(args[0], args[1]) != 0)
+		case 0x1420:
+			debugPrintln("AND")
+			conditions.setOperator(opcode)
+		case 0x1430:
+			debugPrintln("OR")
+			conditions.setOperator(opcode)
+		case 0x1510:
+			debugPrintln("END_IF")
+			if conditions.shouldExecute() {
+				continueLoop = 0
+			} else {
+				conditions.reset()
+				triggered = false
+			}
+		case 0x1520:
+			debugPrintln("END_WHILE")
+		case 0x2005:
+			peekUint16Block(data, &offset, args[:], 4)
+			debugPrintf("ADD_SCENE %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			if conditions.shouldExecute() {
+				if inRandBlock != 0 {
+					adsRandomAddScene(args[0], args[1], args[2], args[3])
+				} else {
+					adsAddScene(args[0], args[1], args[2])
+				}
+			}
+		case 0x2010:
+			peekUint16Block(data, &offset, args[:], 3)
+			debugPrintf("STOP_SCENE %d %d %d\n", args[0], args[1], args[2])
+			if conditions.shouldExecute() {
+				if inRandBlock != 0 {
+					adsRandomStopSceneByTtmTag(args[0], args[1], args[2])
+				} else {
+					adsStopSceneByTtmTag(args[0], args[1])
+				}
+			}
+		case 0x3010:
+			debugPrintln("RANDOM_START")
+			if conditions.shouldExecute() {
+				adsRandomStart()
+			}
+			inRandBlock = 1
+		case 0x3020:
+			peekUint16Block(data, &offset, args[:], 1)
+			debugPrintln("NOP")
+			if inRandBlock != 0 && conditions.shouldExecute() {
+				adsRandomNop(args[0])
+			}
+		case 0x30ff:
+			debugPrintln("RANDOM_END")
+			if conditions.shouldExecute() {
+				adsRandomEnd()
+			}
+			inRandBlock = 0
+		case 0x4000:
+			peekUint16Block(data, &offset, args[:], 3)
+			debugPrintln("UNKNOWN_6") // only in BUILDING.ADS tag 7
+		case 0xf010:
+			debugPrintln("FADE_OUT")
+		case 0xf200:
+			peekUint16Block(data, &offset, args[:], 1)
+			debugPrintf("GOSUB_TAG %d\n", args[0]) // ex UNKNOWN_8
+			// "quick and dirty" implementation, sufficient for
+			// JCastaway : only encountered in STAND.ADS to tag 14
+			// which only contains 1 scene
+			if conditions.shouldExecute() {
+				adsPlayChunk(data, dataSize, adsFindTag(args[0]))
+			}
+		case 0xffff:
+			debugPrintln("END")
+			if !conditions.shouldExecute() {
+				conditions.reset()
+			} else {
+				adsStopRequested = 1
+				continueLoop = 0
+			}
+		case 0xfff0:
+			debugPrintln("END_IF")
+		default:
+			debugPrintf(":TAG %d\n", opcode)
+		}
+	}
+}
+
+func adsFindEndWhile(data []byte, dataSize, offset uint32) uint32 {
+	depth := 1
+	for offset+2 <= dataSize && int(offset)+2 <= len(data) {
+		opcode := peekUint16(data, &offset)
+		if opcode == 0x1070 {
+			depth++
+		} else if opcode == 0x1520 {
+			depth--
+			if depth == 0 {
+				return offset
+			}
+		}
+		argCount, known := adsOpcodeArgCounts[opcode]
+		if !known {
+			return offset
+		}
+		offset += uint32(argCount * 2)
+	}
+	return offset
+}
+
+func adsPlayTriggeredChunks(data []byte, dataSize uint32, ttmSlotNo, ttmTag uint16) {
+	// First we deal with the case where a local trigger was declared
+	// (only one occurrence of this, in ACTIVITY.ADS tag #7)
+
+	for i := 0; i < numAdsChunksLocal; i++ {
+		if adsChunksLocal[i].scene.slot == ttmSlotNo && adsChunksLocal[i].scene.tag == ttmTag {
+			offset := adsChunksLocal[i].offset
+			copy(adsChunksLocal[i:], adsChunksLocal[i+1:numAdsChunksLocal])
+			numAdsChunksLocal--
+			adsPlayChunkWithTrigger(data, dataSize, offset, true)
+			return
+		}
+	}
+	{ // Then, the general case
+		// Note : in a few rare cases (eg BUILDING.ADS tag #2), the ADS script
+		// contains several 'IF_LASTPLAYED' commands for one given scene.
+		for i := 0; i < numAdsChunks; i++ {
+			if adsChunks[i].scene.slot == ttmSlotNo && adsChunks[i].scene.tag == ttmTag {
+				adsPlayChunkWithTrigger(data, dataSize, adsChunks[i].offset, true)
+			}
+		}
+	}
+}
+
+func adsPlay(adsName string, adsTag uint16) {
+	var (
+		offset   uint32 = 0
+		data     []byte
+		dataSize uint32
+	)
+
+	adsResource := findAdsResource(adsName)
+	debugPrintf("\n\n========== Playing ADS: %s:%d ==========\n", adsResource.ResName, adsTag)
+
+	data = adsResource.UncompressedData
+	dataSize = adsResource.UncompressedSize
+	traceBeginADS(adsResource.ResName, data)
+
+	for i := 0; i < int(adsResource.NumRes); i++ {
+		ttmLoadTTM(&ttmSlots[adsResource.Res[i].ID], adsResource.Res[i].Name)
+	}
+
+	adsLoad(data, dataSize, adsResource.NumTags, adsTag, &offset)
+
+	adsStopRequested = 0
+	grUpdateDelay = 0
+
+	// Play the first ADS chunk of the sequence
+	adsPlayChunk(data, dataSize, offset)
+
+	// Main ADS loop
+	for numThreads != 0 {
+		if ttmBackgroundThread.isRunning != 0 && ttmBackgroundThread.timer == 0 {
+			debugPrintln("    ------> Animate bg")
+			ttmBackgroundThread.timer = ttmBackgroundThread.delay
+			islandAnimate(&ttmBackgroundThread)
+		}
+
+		if ttmCloudsThread.isRunning != 0 && ttmCloudsThread.timer == 0 {
+			debugPrintln("    ------> Animate clouds")
+			ttmCloudsThread.timer = ttmCloudsThread.delay
+			islandAnimateClouds(&ttmCloudsThread)
+		}
+
+		for i := 0; i < MaxTTMThreads; i++ {
+			// Call ttmPlay() for each thread which timer reaches 0
+			if ttmThreads[i].isRunning != 0 && ttmThreads[i].timer == 0 {
+				debugPrintf("    ------> Thread #%d\n", i)
+				ttmThreads[i].timer = ttmThreads[i].delay
+				ttmPlay(&ttmThreads[i])
+			}
+		}
+
+		// r.c. todo
+		//if debugMode {
+		//
+		//}
+
+		// Refresh display
+		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
+
+		// Determine min timer through all threads
+		mini := uint16(300)
+
+		if ttmBackgroundThread.isRunning != 0 {
+			mini = ttmBackgroundThread.timer
+		}
+
+		if ttmCloudsThread.isRunning != 0 {
+			if ttmCloudsThread.timer < mini {
+				mini = ttmCloudsThread.timer
+			}
+		}
+
+		for i := 0; i < MaxTTMThreads; i++ {
+			if ttmThreads[i].isRunning != 0 {
+				if ttmThreads[i].delay < mini {
+					mini = ttmThreads[i].delay
+				}
+
+				if ttmThreads[i].timer < mini {
+					mini = ttmThreads[i].timer
+				}
+			}
+		}
+
+		// Decrease all timers by the shortest one, and wait that amount of time
+		ttmBackgroundThread.timer -= mini
+		ttmCloudsThread.timer -= mini
+
+		for i := 0; i < MaxTTMThreads; i++ {
+			if ttmThreads[i].isRunning != 0 {
+				ttmThreads[i].timer -= mini
+			}
+		}
+
+		debugPrintf(" ******* WAIT: %d ticks *******\n", mini)
+		grUpdateDelay = int(mini)
+
+		// Various threads processes
+		for i := 0; i < MaxTTMThreads; i++ {
+			if ttmThreads[i].isRunning != 0 && ttmThreads[i].timer == 0 {
+
+				// Process jumps
+				if ttmThreads[i].nextGotoOffset != 0 {
+					ttmThreads[i].ip = ttmThreads[i].nextGotoOffset
+					ttmThreads[i].nextGotoOffset = 0
+				}
+
+				// Managing the timer which was indicated in ADD_SCENE arg3 (neg. value)
+				if ttmThreads[i].sceneTimer > 0 {
+					ttmThreads[i].sceneTimer -= int16(ttmThreads[i].delay)
+					if ttmThreads[i].sceneTimer <= 0 {
+						ttmThreads[i].isRunning = 2
+					}
+				}
+
+				// Free terminated threads
+				if ttmThreads[i].isRunning == 2 {
+					// Managing the numPlays which was indicated in ADD_SCENE arg3 (postive value)
+					if ttmThreads[i].sceneIterations != 0 {
+						ttmThreads[i].sceneIterations--
+						ttmThreads[i].isRunning = 1
+						ttmThreads[i].ip = ttmFindTag(&ttmSlots[ttmThreads[i].sceneSlot], ttmThreads[i].sceneTag)
+					} else { // Is there one (or more) IF_LASTPLAYED matching the terminated thread ?
+						adsStopScene(i)
+						if adsStopRequested == 0 {
+							adsPlayTriggeredChunks(data, dataSize, ttmThreads[i].sceneSlot, ttmThreads[i].sceneTag)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	for i := 0; i < MaxTTMSlots; i++ {
+		ttmResetSlot(&ttmSlots[i])
+	}
+
+	grRestoreZone(nil, 0, 0, 0, 0)
+
+	adsReleaseAds()
+}
+
+func adsPlayBench() {
+	// r.c. in the original C version, I think this one is only called via a cli argument.
+	// it's likely just a debug/tool thing, not sure if I will bother implementing.
+}
+
+func adsPlayIntro() {
+	grLoadScreen("INTRO.SCR")
+	grUpdateDelay = 100
+	grUpdateDisplay(nil, ttmThreads[:], nil, nil)
+	grFadeOut()
+	ttmResetSlot(&ttmSlots[0])
+}
+
+func adsInitIsland() {
+	// Init the background thread (animated waves)
+	// and call islandInit() to draw the background
+
+	ttmInitSlot(&ttmBackgroundSlot)
+
+	ttmBackgroundThread.ttmSlot = &ttmBackgroundSlot
+	ttmBackgroundThread.isRunning = 3
+	ttmBackgroundThread.delay = 40 // TODO
+	ttmBackgroundThread.timer = 0
+
+	islandInit(&ttmBackgroundThread)
+
+	// Init the "holiday" layer and thread
+	if ttmHolidayThread.isRunning != 0 && ttmHolidayThread.ttmLayer != nil {
+		grFreeLayer(ttmHolidayThread.ttmLayer)
+	}
+	ttmHolidayThread.ttmLayer = nil
+
+	ttmInitSlot(&ttmHolidaySlot)
+
+	ttmHolidayThread.ttmSlot = &ttmHolidaySlot
+	ttmHolidayThread.isRunning = 0
+	ttmHolidayThread.delay = 0
+	ttmHolidayThread.timer = 0
+
+	islandInitHoliday(&ttmHolidayThread)
+
+	// Clouds
+	ttmInitSlot(&ttmCloudsSlot)
+	ttmCloudsThread.ttmSlot = &ttmCloudsSlot
+	ttmCloudsThread.isRunning = 3
+	ttmCloudsThread.delay = 8
+	ttmCloudsThread.timer = 0
+	if ttmCloudsThread.ttmLayer != nil {
+		// r.c. - original C has these lines swapped which is incorrect logic
+		grFreeLayer(ttmCloudsThread.ttmLayer)
+		ttmCloudsThread.ttmLayer = nil
+	}
+	ttmCloudsThread.ttmLayer = grNewLayer()
+
+	islandAnimateClouds(&ttmCloudsThread)
+}
+
+func adsReleaseIsland() {
+	ttmBackgroundThread.isRunning = 0
+	ttmResetSlot(&ttmBackgroundSlot)
+	ttmBackgroundThread.ttmLayer = nil
+
+	if ttmHolidayThread.ttmLayer != nil {
+		grFreeLayer(ttmHolidayThread.ttmLayer)
+		ttmHolidayThread.ttmLayer = nil
+	}
+	ttmHolidayThread.isRunning = 0
+	ttmResetSlot(&ttmHolidaySlot)
+
+	if ttmCloudsThread.ttmLayer != nil {
+		grFreeLayer(ttmCloudsThread.ttmLayer)
+		ttmCloudsThread.ttmLayer = nil
+	}
+	ttmCloudsThread.isRunning = 0
+	ttmResetSlot(&ttmCloudsSlot)
+}
+
+func adsNoIsland() {
+	grDx = 0
+	grDy = 0
+	grInitEmptyBackground()
+}
+
+func adsPlayWalk(fromSpot, fromHdg, toSpot, toHdg int) {
+	adsAddScene(0, 0, 0)
+	grLoadBmp(&ttmSlots[0], 0, "JOHNWALK.BMP")
+
+	grDx = islandState.xPos
+	grDy = islandState.yPos
+
+	ttmThreads[0].timer = 6
+	ttmThreads[0].delay = 6 // 12 ?
+
+	walkInit(fromSpot, fromHdg, toSpot, toHdg)
+	ttmThreads[0].delay = uint16(walkAnimate(&ttmThreads[0], ttmBackgroundThread.ttmSlot))
+
+	for ttmThreads[0].delay != 0 {
+		// Call each thread which timer reaches 0
+		if ttmBackgroundThread.timer == 0 {
+			debugPrintln("    ------> Animate bg")
+			ttmBackgroundThread.timer = ttmBackgroundThread.delay
+			islandAnimate(&ttmBackgroundThread)
+		}
+
+		if ttmCloudsThread.timer == 0 {
+			debugPrintln("    ------> Animate clouds")
+			ttmCloudsThread.timer = ttmCloudsThread.delay
+			islandAnimateClouds(&ttmCloudsThread)
+		}
+
+		if ttmThreads[0].timer == 0 {
+			debugPrintln("    ------> Animate walking")
+			walkResult := uint16(walkAnimate(&ttmThreads[0], ttmBackgroundThread.ttmSlot))
+			ttmThreads[0].timer = walkResult
+			ttmThreads[0].delay = walkResult
+		}
+
+		// Refresh display
+		grUpdateDisplay(&ttmBackgroundThread, ttmThreads[:], &ttmHolidayThread, &ttmCloudsThread)
+
+		// Determine min timer from the two threads
+		mini := uint16(300)
+		if ttmBackgroundThread.timer < ttmThreads[0].timer {
+			mini = ttmBackgroundThread.timer
+		} else if ttmCloudsThread.timer < ttmThreads[0].timer {
+			mini = ttmCloudsThread.timer
+		} else {
+			mini = ttmThreads[0].timer
+		}
+
+		// Decrease all timers by the shortest one, and wait that amount of time
+		ttmBackgroundThread.timer -= mini
+		ttmCloudsThread.timer -= mini
+		ttmThreads[0].timer -= mini
+
+		debugPrintf(" ******* WAIT: %d ticks *******\n", mini)
+		grUpdateDelay = int(mini)
+	}
+
+	adsStopScene(0)
+}
