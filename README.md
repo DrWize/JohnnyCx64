@@ -147,6 +147,10 @@ CRT mode is restored afterward and the result table remains visible for twenty
 seconds. Run fullscreen on the target monitor—for example with `--monitor N`
 and `--fullscreen`—to collect meaningful native 4K or Neo G9 results.
 
+See [the display performance matrix](docs/PERFORMANCE.md) for recorded physical
+output results, hardware details, limitations, and the remaining resolution
+gates.
+
 Borderless fullscreen and screensaver modes use the selected monitor's native
 size and origin, including 5120x1440 and 7680x2160 Samsung Odyssey Neo G9-class
 32:9 displays. The default aspect-preserving mode centers the original 4:3
