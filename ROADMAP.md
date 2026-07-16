@@ -129,7 +129,7 @@ Progress on 2026-07-16: all four production CRT paths held 30 FPS at a physical
 3840x1080 output on an RTX 4080, with 0.15–0.19 ms CPU submission time. Results
 and limitations are recorded in `docs/PERFORMANCE.md`. The four required target
 resolutions and a lower-powered GPU remain physical-hardware gates, so automatic
-defaults and Phases 5–7 are intentionally not advanced yet.
+shader defaults and any additional CRT prototypes remain deferred.
 
 ## Phase 5 — Optional CRT modes (P2)
 
@@ -178,8 +178,6 @@ Exit criteria:
 - [x] Design the first platform boundary for diagnostics, single-instance
   locking, Windows-only argument handling, and preview behavior. Runtime input,
   audio, idle-timeout, data-path UI, and packaging remain Linux release work.
-  and packaging layers rather than assuming the Windows CGO target will port
-  unchanged.
 - [x] Add an Ubuntu test/build job as the Linux compile proof before committing
   to a multi-platform release plan.
 
