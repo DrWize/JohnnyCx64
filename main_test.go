@@ -22,6 +22,12 @@ func TestParseOptions(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "defaults", want: appOptions{monitor: 1}},
+		{name: "Windows screensaver", args: []string{"/s"}, want: appOptions{monitor: 1, screenSaver: true}},
+		{name: "Windows preview separated handle", args: []string{"/p", "1234"}, want: appOptions{monitor: 1, screenSaver: true, previewParent: 1234}},
+		{name: "Windows preview attached handle", args: []string{"/P:0x4d2"}, want: appOptions{monitor: 1, screenSaver: true, previewParent: 1234}},
+		{name: "Windows configuration", args: []string{"/c:1234"}, want: appOptions{monitor: 1, windowed: true, menu: true, configuration: true}},
+		{name: "missing preview handle", args: []string{"/p"}, wantErr: true},
+		{name: "invalid preview handle", args: []string{"/p:not-a-window"}, wantErr: true},
 		{name: "Fast CRT override", args: []string{"--crt", "FAST"}, want: appOptions{monitor: 1, crt: "fast"}},
 		{
 			name: "all options",
