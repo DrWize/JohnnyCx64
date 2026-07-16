@@ -48,10 +48,15 @@
    and expected GPU cost. F9 now performs an automatic four-mode comparison at
    the current output resolution, restores the original mode, and presents the
    results for twenty seconds. Physical/native-resolution runs remain pending.
-11. [ ] Evaluate CRT-Easymode as the flat, sharp high-resolution alternative.
-12. [ ] Evaluate CRT-Geom as an optional curved-tube mode for faster GPUs.
-13. [ ] Decide whether to create original replacement artwork for the unavailable
-   `FLAME.BMP` and `FLURRY.BMP` effects.
+11. [x] Evaluate CRT-Easymode as the flat, sharp high-resolution alternative.
+   Its upstream header does not identify a GPL version, so do not copy or port
+   it without authoritative license clarification.
+12. [x] Evaluate CRT-Geom as an optional curved-tube mode for faster GPUs. Its
+   GPL-2.0-or-later terms are compatible, but defer a port until the physical
+   performance matrix can measure it.
+13. [x] Keep the unavailable `FLAME.BMP` and `FLURRY.BMP` effects omitted for the
+   stable release. Any future original replacements must be clearly labeled,
+   licensed, and optional for fidelity comparisons.
 
 ## Tomorrow's priorities
 
@@ -141,10 +146,10 @@
    with the zfast feature set: brightness-aware scanlines, adjustable sharpness,
    and a lightweight aperture mask. Do not copy GPL source unless the project
    first adopts a compatible distribution license.
-4. [ ] Consider CRT-Easymode after Lottes for a flat, sharp 1080p/4K preset with
-   configurable beam width, gamma, brightness, and RGB mask.
-5. [ ] Consider CRT-Geom as an optional curved-tube preset, with curvature,
-   rounded corners, overscan, and interlace disabled by default on slower GPUs.
+4. [x] Evaluated CRT-Easymode for a flat, sharp 1080p/4K preset. Its ambiguous
+   `License: GPL` header blocks a distributable port until the version is clear.
+5. [x] Evaluated CRT-Geom as an optional curved-tube preset. It is legally
+   compatible, but remains deferred pending physical performance measurements.
 6. [ ] Add shader capability fallback and a benchmark overlay, then measure all
    modes at 1920x1080, 3840x2160, 5120x1440, and 7680x2160 before choosing final
    defaults. Render only the centered 4:3 viewport, not the 32:9 pillarboxes.

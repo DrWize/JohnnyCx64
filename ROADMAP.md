@@ -135,12 +135,16 @@ defaults and Phases 5–7 are intentionally not advanced yet.
 
 Target: only after the performance matrix is complete.
 
-- [ ] Prototype CRT-Easymode as a flat, sharp 1080p/4K option.
-- [ ] Benchmark it against Fast and Lottes before deciding whether to retain it.
-- [ ] Prototype CRT-Geom as an explicitly optional curved-tube mode for faster
-  GPUs, with curvature, overscan, rounded corners, and interlace off by default.
-- [ ] Keep only modes that add a distinct visual benefit without making setup or
-  fallback behavior confusing.
+- [x] Evaluate CRT-Easymode as a flat, sharp 1080p/4K option. Do not import it
+  while its upstream header says only `GPL` without a license version.
+- [x] Decide whether CRT-Easymode should enter the benchmark: no distributable
+  prototype is retained until authoritative license clarification exists.
+- [x] Evaluate CRT-Geom as an optional curved-tube mode. Its GPL-2.0-or-later
+  terms are compatible, but defer a port until the physical matrix can measure
+  it with curvature, overscan, rounded corners, and interlace off by default.
+- [x] Keep the current four modes rather than adding an ambiguously licensed or
+  unmeasured option. The complete evaluation is in
+  `docs/ROADMAP_EVALUATIONS.md`.
 
 Exit criteria:
 
@@ -153,10 +157,11 @@ Exit criteria:
   and holiday behavior with the documented observation references.
 - [ ] Review known implementations for behavioral regressions and test gaps
   without copying incompatible code or assets.
-- [ ] Decide whether omitted `FLAME.BMP` and `FLURRY.BMP` effects should remain a
+- [x] Decide whether omitted `FLAME.BMP` and `FLURRY.BMP` effects should remain a
   documented limitation or receive clearly identified original replacement art.
-- [ ] If replacement art is created, document authorship and licensing and keep
-  it visually distinct from unrecoverable Sierra/Dynamix assets.
+- [x] Do not create replacement art for the stable release. If that decision is
+  revisited, require documented authorship and licensing, label it as a
+  replacement, and keep it optional for original-data comparisons.
 
 Exit criteria:
 
@@ -166,18 +171,26 @@ Exit criteria:
 
 ## Phase 7 — Cross-platform exploration (P3)
 
-- [ ] Re-evaluate macOS, Linux/XScreenSaver, and WebAssembly only after the
+- [x] Re-evaluate macOS, Linux/XScreenSaver, and WebAssembly. Select Linux for
+  the first bounded compile proof because Raylib documents its Ubuntu CGO
+  dependencies and CI can reproduce the build.
   Windows release and display paths are stable.
-- [ ] Design platform-specific windowing, input, audio, idle-timeout, data-path,
+- [x] Design the first platform boundary for diagnostics, single-instance
+  locking, Windows-only argument handling, and preview behavior. Runtime input,
+  audio, idle-timeout, data-path UI, and packaging remain Linux release work.
   and packaging layers rather than assuming the Windows CGO target will port
   unchanged.
-- [ ] Select one platform for a small proof of concept before committing to a
-  multi-platform release plan.
+- [x] Add an Ubuntu test/build job as the Linux compile proof before committing
+  to a multi-platform release plan.
 
 Exit criteria:
 
 - A documented proof of concept demonstrates that one additional platform is
   maintainable without weakening the Windows release.
+
+Progress on 2026-07-16: Linux has a platform abstraction and Ubuntu compile CI.
+This demonstrates build maintenance only; it is not evidence of runtime or
+XScreenSaver support. Windows x64 and x86 CI remain mandatory release gates.
 
 ## Recommended immediate sequence
 

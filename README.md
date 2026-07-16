@@ -18,6 +18,11 @@ targets. Raylib uses native platform libraries through CGO here, so those are
 future ports requiring their own build, input, audio, and screensaver integration
 rather than guaranteed one-command cross-compiles.
 
+An Ubuntu CI job now maintains a Linux compile proof with Unix single-instance
+locking and terminal diagnostics. It is not a supported Linux release; runtime
+display, audio, packaging, idle detection, and XScreenSaver behavior remain to
+be validated. See [the roadmap evaluations](docs/ROADMAP_EVALUATIONS.md).
+
 ### Windows x64 application and x86 screensaver builds
 
 Run `build\build.bat` from a Command Prompt to create the latest executable at
