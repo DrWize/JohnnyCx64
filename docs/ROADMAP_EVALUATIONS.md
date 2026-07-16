@@ -1,4 +1,4 @@
-# Roadmap evaluations: CRT, fidelity, and Linux
+# Roadmap evaluations: CRT, fidelity, and cross-platform scope
 
 Updated: 2026-07-16
 
@@ -58,22 +58,14 @@ long-run order and timing, day/night changes, holidays, and known engine edge
 cases must be recorded without downloading or redistributing copyrighted video
 or game assets.
 
-## Phase 7 — Linux compile proof
+## Phase 7 — cross-platform scope
 
-Linux is the first additional platform because Raylib documents its native Linux
-CGO dependencies and GitHub provides a reproducible Ubuntu runner. The proof adds
-only the platform boundary needed to compile:
+Linux was evaluated as the first possible additional platform, and a temporary
+compile proof established that the Go/Raylib code could be built on Ubuntu with
+a small platform boundary. It did not establish runtime display, audio,
+packaging, idle detection, or XScreenSaver support.
 
-- terminal diagnostics replace Windows message boxes;
-- Unix `flock` provides process-level single-instance behavior;
-- Windows screensaver arguments are not interpreted on Linux;
-- Windows preview embedding remains explicitly unsupported;
-- Ubuntu CI runs tests and builds an amd64 binary with Raylib's documented
-  development packages.
-
-Primary source:
-[raylib-go build requirements](https://github.com/gen2brain/raylib-go#requirements).
-
-This is a compile proof, not a Linux release. Runtime X11/Wayland behavior,
-audio, packaging, data-folder UI, idle detection, and XScreenSaver integration
-remain unverified. The proof must not weaken or complicate the Windows builds.
+Decision: keep JohnnyCx86 Windows-only. Remove the Linux platform shim and
+Ubuntu CI workflow so a compile-only artifact does not imply support or consume
+project build time. Reconsider cross-platform work only with a complete runtime,
+screensaver integration, packaging, and QA plan.

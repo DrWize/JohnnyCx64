@@ -116,7 +116,10 @@ Target: after release stability is established.
   scaling mode, fit/stretch mode, average FPS, and CPU submission time.
 - [ ] Verify that only the centered 4:3 viewport incurs shader cost on 32:9
   displays.
-- [ ] Add capability fallback for shader compilation or inadequate performance.
+- [x] Add compile-capability fallback: unsupported CRT shaders fall back to
+  Lightweight and are excluded from the live mode cycle and F9 benchmark.
+- [ ] Add inadequate-performance fallback after the physical matrix establishes
+  conservative thresholds; always keep a user override.
 - [ ] Choose conservative automatic defaults from measured results; always keep
   a user override.
 
@@ -169,26 +172,20 @@ Exit criteria:
   documented.
 - The missing-effect policy is final and legally unambiguous.
 
-## Phase 7 — Cross-platform exploration (P3)
+## Phase 7 — Cross-platform exploration (deferred)
 
-- [x] Re-evaluate macOS, Linux/XScreenSaver, and WebAssembly. Select Linux for
-  the first bounded compile proof because Raylib documents its Ubuntu CGO
-  dependencies and CI can reproduce the build.
-  Windows release and display paths are stable.
-- [x] Design the first platform boundary for diagnostics, single-instance
-  locking, Windows-only argument handling, and preview behavior. Runtime input,
-  audio, idle-timeout, data-path UI, and packaging remain Linux release work.
-- [x] Add an Ubuntu test/build job as the Linux compile proof before committing
-  to a multi-platform release plan.
+- [x] Re-evaluate macOS, Linux/XScreenSaver, and WebAssembly.
+- [x] Keep the active project Windows-only. The temporary Linux compile proof,
+  platform shim, and Ubuntu CI job were removed so they do not create an implied
+  support commitment or consume build time.
+- [ ] Reopen cross-platform work only after the Windows stable release and only
+  when a supported runtime, screensaver integration, packaging, and QA plan has
+  an owner.
 
-Exit criteria:
+Exit criteria if reopened:
 
-- A documented proof of concept demonstrates that one additional platform is
+- A supported proof of concept demonstrates that another platform is
   maintainable without weakening the Windows release.
-
-Progress on 2026-07-16: Linux has a platform abstraction and Ubuntu compile CI.
-This demonstrates build maintenance only; it is not evidence of runtime or
-XScreenSaver support. Windows x64 and x86 CI remain mandatory release gates.
 
 ## Recommended immediate sequence
 
