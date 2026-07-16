@@ -36,6 +36,8 @@ type appOptions struct {
 	noSaveSettings bool
 	crt            string
 	dataDir        string
+	previewParent  uintptr
+	configuration  bool
 }
 
 type exitRequest struct{}
@@ -53,7 +55,13 @@ func requestContentSwitch(target string) {
 }
 
 func parseOptions(args []string) (appOptions, error) {
+	args, previewParent, configuration, err := normalizeWindowsScreenSaverArgs(args)
+	if err != nil {
+		return appOptions{monitor: 1}, err
+	}
 	opts := appOptions{monitor: 1}
+	opts.previewParent = previewParent
+	opts.configuration = configuration
 	var fullscreen, soundEnabled, fit bool
 	fs := flag.NewFlagSet("JohnnyCastaway", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
@@ -132,32 +140,38 @@ func runApp() (exitCode int) {
 		}
 	}()
 
-	opts, err := parseOptions(os.Args[1:])
+	rawArgs := os.Args[1:]
+	opts, err := parseOptions(rawArgs)
 	if err != nil {
 		showErrorDialog("Johnny Castaway", "Invalid command line: "+err.Error())
 		return 2
 	}
 	appSettings = opts
-	loadPersistentSettings(os.Args[1:])
+	normalizedArgs, _, _, _ := normalizeWindowsScreenSaverArgs(rawArgs)
+	loadPersistentSettings(normalizedArgs)
 	if err := loadResourceArchives(appSettings.dataDir); err != nil {
 		showErrorDialog("Johnny Castaway data files", err.Error()+"\n\nUse --data-dir to select the folder containing your original files.")
 		return 3
 	}
 
-	releaseInstance, firstInstance, err := acquireSingleInstance()
-	if err != nil {
-		panic(fmt.Errorf("single-instance check: %w", err))
-	}
-	if !firstInstance {
-		showInfoDialog("Johnny Castaway", "Johnny Castaway is already running.")
-		return 0
+	releaseInstance := func() {}
+	if appSettings.previewParent == 0 {
+		var firstInstance bool
+		releaseInstance, firstInstance, err = acquireSingleInstance()
+		if err != nil {
+			panic(fmt.Errorf("single-instance check: %w", err))
+		}
+		if !firstInstance {
+			showInfoDialog("Johnny Castaway", "Johnny Castaway is already running.")
+			return 0
+		}
 	}
 	defer releaseInstance()
 	if !appSettings.noSaveSettings {
 		persistDisplayPlaybackSettings()
 	}
 
-	log.Printf("starting: windowed=%t screensaver=%t mute=%t stretch=%t monitor=%d ttm=%q menu=%t dataDir=%q", appSettings.windowed, appSettings.screenSaver, appSettings.mute, appSettings.stretch, appSettings.monitor, appSettings.ttm, appSettings.menu, appSettings.dataDir)
+	log.Printf("starting: windowed=%t screensaver=%t previewParent=%#x configuration=%t mute=%t stretch=%t monitor=%d ttm=%q menu=%t dataDir=%q", appSettings.windowed, appSettings.screenSaver, appSettings.previewParent, appSettings.configuration, appSettings.mute, appSettings.stretch, appSettings.monitor, appSettings.ttm, appSettings.menu, appSettings.dataDir)
 	currentContent = opts.ttm
 	runEngine(func() { runContentSessions(opts.ttm) })
 	return 0
@@ -205,13 +219,14 @@ func releaseContentSession() {
 }
 
 func setupApp() {
+	isPreview := appSettings.previewParent != 0
 	flags := uint32(rl.FlagMsaa4xHint | rl.FlagWindowHighdpi)
 	if appSettings.windowed {
 		flags |= rl.FlagWindowResizable
 	} else {
 		flags |= rl.FlagWindowUndecorated
 	}
-	if appSettings.screenSaver {
+	if appSettings.screenSaver && !isPreview {
 		flags |= rl.FlagWindowTopmost
 	}
 	rl.SetConfigFlags(flags)
@@ -219,39 +234,46 @@ func setupApp() {
 	// Escape is handled by the application's double-press quit policy.
 	rl.SetExitKey(rl.KeyNull)
 
-	monitorCount := rl.GetMonitorCount()
-	mon := resolveMonitorIndex(appSettings.monitor, monitorCount)
-	if mon != appSettings.monitor-1 {
-		log.Printf("requested monitor %d is unavailable; using monitor 1", appSettings.monitor)
-	}
-	monW := rl.GetMonitorWidth(mon)
-	monH := rl.GetMonitorHeight(mon)
-	if monW <= 0 {
-		monW = 1920
-	}
-	if monH <= 0 {
-		monH = 1080
-	}
-	monPos := rl.GetMonitorPosition(mon)
-	log.Printf("display: monitor=%d origin=%dx%d size=%dx%d aspect=%.3f ultrawide=%t",
-		mon+1, int(monPos.X), int(monPos.Y), monW, monH,
-		float64(monW)/float64(monH), is32By9Display(monW, monH))
-
-	if appSettings.windowed {
-		winW, winH := 960, 720
-		if winW > monW {
-			winW = monW
+	if isPreview {
+		if err := attachPreviewWindow(rl.GetWindowHandle(), appSettings.previewParent); err != nil {
+			panic(fmt.Errorf("screensaver preview: %w", err))
 		}
-		if winH > monH {
-			winH = monH
-		}
-		rl.SetWindowSize(winW, winH)
-		rl.SetWindowPosition(int(monPos.X)+(monW-winW)/2, int(monPos.Y)+(monH-winH)/2)
+		log.Printf("display: embedded screensaver preview in parent %#x", appSettings.previewParent)
 	} else {
-		rl.SetWindowSize(monW, monH)
-		rl.SetWindowPosition(int(monPos.X), int(monPos.Y))
-		rl.DisableCursor()
-		rl.HideCursor()
+		monitorCount := rl.GetMonitorCount()
+		mon := resolveMonitorIndex(appSettings.monitor, monitorCount)
+		if mon != appSettings.monitor-1 {
+			log.Printf("requested monitor %d is unavailable; using monitor 1", appSettings.monitor)
+		}
+		monW := rl.GetMonitorWidth(mon)
+		monH := rl.GetMonitorHeight(mon)
+		if monW <= 0 {
+			monW = 1920
+		}
+		if monH <= 0 {
+			monH = 1080
+		}
+		monPos := rl.GetMonitorPosition(mon)
+		log.Printf("display: monitor=%d origin=%dx%d size=%dx%d aspect=%.3f ultrawide=%t",
+			mon+1, int(monPos.X), int(monPos.Y), monW, monH,
+			float64(monW)/float64(monH), is32By9Display(monW, monH))
+
+		if appSettings.windowed {
+			winW, winH := 960, 720
+			if winW > monW {
+				winW = monW
+			}
+			if winH > monH {
+				winH = monH
+			}
+			rl.SetWindowSize(winW, winH)
+			rl.SetWindowPosition(int(monPos.X)+(monW-winW)/2, int(monPos.Y)+(monH-winH)/2)
+		} else {
+			rl.SetWindowSize(monW, monH)
+			rl.SetWindowPosition(int(monPos.X), int(monPos.Y))
+			rl.DisableCursor()
+			rl.HideCursor()
+		}
 	}
 
 	if !appSettings.mute {
@@ -303,6 +325,9 @@ func doFadeIn() {
 	fadeInVal = 255.0
 
 	for !rl.WindowShouldClose() {
+		if appSettings.previewParent != 0 && !previewHostAvailable(appSettings.previewParent) {
+			requestExit()
+		}
 		rl.BeginDrawing()
 		rl.ClearBackground(rl.Blank)
 

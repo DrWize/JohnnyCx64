@@ -18,11 +18,17 @@
    source-only history containing no Sierra/Dynamix data or generated executable
    history. Preserve upstream attribution in README/NOTICE instead of importing
    the old asset-bearing Git history.
-5. [ ] Add a true Windows x86 `.scr` target to JohnnyCx86: build `GOARCH=386`,
+5. [x] Add a true Windows x86 `.scr` target to JohnnyCx86: build `GOARCH=386`,
    provide screensaver `/s`, preview `/p HWND`, and configure `/c` modes, add a
    32-bit Raylib/CGO toolchain and CI job, and test on supported 64-bit Windows
-   through WOW64. Treat the downloaded unsigned `Screen Antics.scr` only as a
-   behavior/PE reference; never execute or redistribute it.
+   through WOW64. `build\build_x86.bat` now produces a PE32
+   `JohnnyCastaway-x86.scr`; `/s`, `/p HWND`, `/p:HWND`, `/c`, and `/c:HWND`
+   are parsed and covered by regression tests, preview mode reparents the Raylib
+   HWND into the Windows preview host, and the x86 CI job verifies `windows/386`
+   metadata. Local QA on 64-bit Windows verifies all three modes and real child
+   window parenting without executing the downloaded unsigned reference.
+   Treat the downloaded unsigned `Screen Antics.scr` only as a behavior/PE
+   reference; never execute or redistribute it.
 6. [ ] Update [DrWize/home](https://github.com/DrWize/home) after JohnnyCx86 is
    public. Add the active projects, repository links, screenshots/build status,
    data-file policy, and a short description of the Windows x64/x86 work.

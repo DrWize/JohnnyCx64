@@ -18,7 +18,7 @@ targets. Raylib uses native platform libraries through CGO here, so those are
 future ports requiring their own build, input, audio, and screensaver integration
 rather than guaranteed one-command cross-compiles.
 
-### Windows 11 x64 build
+### Windows x64 application and x86 screensaver builds
 
 Run `build\build.bat` from a Command Prompt to create the latest executable at
 `build\JohnnyCastaway-x64.exe` and a timestamped copy under `build\history\`.
@@ -31,10 +31,32 @@ the temporary object. The executable requires the user's original data folder
 at runtime. Set `MSYS2_ROOT` before running the scripts when MSYS2 is installed
 somewhere other than `C:\msys64`; the CI workflow uses this portable path.
 
-Files required for the x64 build are kept in the repository root plus:
+Run `build\build_x86.bat` to create `build\JohnnyCastaway-x86.scr` and a
+timestamped copy under `build\history\`. This build uses `GOARCH=386` with the
+MSYS2 `mingw-w64-i686-gcc` toolchain in `C:\msys64\mingw32`. It is a PE32
+screensaver intended to run through WOW64 on supported 64-bit Windows systems.
+The separate x86 CI job runs the regression suite, checks the Go architecture
+metadata, and uploads the `.scr` artifact.
+
+The `.scr` implements the Windows screensaver command contract:
+
+* `/s` starts the full-screen screensaver.
+* `/p HWND` and `/p:HWND` embed a child window in the supplied Screen Saver
+  Settings preview host. Preview mode ignores normal input-to-exit behavior and
+  closes when its host window disappears.
+* `/c` and `/c:HWND` open Johnny Castaway's windowed settings panel. The optional
+  owner handle is accepted for compatibility; configuration remains in the
+  application's own Raylib window.
+
+The standard long-form options can follow a screensaver mode for testing, such
+as `/s --mute --data-dir C:\Johnny`. Installing or copying the `.scr` does not
+install the original data; the persisted data directory must already point to
+the user's verified `RESOURCE.MAP` and `RESOURCE.001` files.
+
+Files required for the Windows builds are kept in the repository root plus:
 
 * `assets/` - optional ignored local folder for user-supplied archives and sounds
-* `build/` - build script, Windows manifest/version/icon resources, and output
+* `build/` - build scripts, Windows manifest/version/icon resources, and output
 
 Windows command-line options:
 

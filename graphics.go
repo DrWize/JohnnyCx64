@@ -1,6 +1,5 @@
 package main
 
-import "C"
 import (
 	"fmt"
 	"image/color"
@@ -629,7 +628,11 @@ func grUpdateDisplay(
 		traceUpdateAndDraw()
 		handleDoubleEscape()
 
-		if appSettings.screenSaver {
+		if appSettings.previewParent != 0 && !previewHostAvailable(appSettings.previewParent) {
+			requestExit()
+		}
+
+		if appSettings.screenSaver && appSettings.previewParent == 0 {
 			mousePosition := rl.GetMousePosition()
 			overlayVisible := menuVisible || traceVisible
 			controlPressed := screenSaverControlPressed(overlayWasVisible || overlayVisible)
