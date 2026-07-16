@@ -13,15 +13,10 @@ The Windows application is written in Go and uses Raylib for graphics and
 audio. Sierra/Dynamix archives and sounds are loaded from a user-selected local
 folder and are never embedded in the executable or repository. See
 [Data-file and copyright policy](#data-file-and-copyright-policy).
-The upstream roadmap also identifies macOS, Linux, and WebAssembly as possible
-targets. Raylib uses native platform libraries through CGO here, so those are
-future ports requiring their own build, input, audio, and screensaver integration
-rather than guaranteed one-command cross-compiles.
-
-An Ubuntu CI job now maintains a Linux compile proof with Unix single-instance
-locking and terminal diagnostics. It is not a supported Linux release; runtime
-display, audio, packaging, idle detection, and XScreenSaver behavior remain to
-be validated. See [the roadmap evaluations](docs/ROADMAP_EVALUATIONS.md).
+This project currently targets Windows only. macOS, Linux, and WebAssembly were
+evaluated and deliberately deferred so release work stays focused on the Windows
+x64 application and x86 screensaver. See
+[the roadmap evaluations](docs/ROADMAP_EVALUATIONS.md).
 
 ### Windows x64 application and x86 screensaver builds
 
@@ -135,7 +130,8 @@ sharp interpolation, brightness-dependent scanline width, gamma-aware shading,
 and a three-column RGB aperture grille. It always consumes the native completed
 frame, like Lottes, and performs its own scaling. `F7` changes its sharpness
 without changing CRT mode, and the selected preset persists between sessions.
-Shader compilation failure falls back to Lightweight.
+Shader compilation failure falls back to Lightweight. Unsupported shader modes
+are also removed from the live CRT cycle and the F9 benchmark for that run.
 
 Changing CRT mode, scaling mode, or Fast CRT sharpness displays the performance
 HUD for ten seconds. `F8` pins it across sessions. It reports actual FPS against

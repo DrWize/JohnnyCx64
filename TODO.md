@@ -105,17 +105,12 @@
   Keep the [upstream pull-request index](https://github.com/deckarep/Johnny-Castaway-2026-Public/pulls)
   as a development-history reference; its merged PR #1 is already in the local
   ancestry.
-- [ ] Revisit deckarep's macOS, Linux, and WebAssembly targets after the Windows
-  x64/x86 release gates pass. Compare its menu-bar idle-timeout fallback with a
-  native screensaver, and plan platform-specific CGO/Raylib builds rather than
-  assuming the current Windows target cross-compiles unchanged.
+- [x] Defer macOS, Linux, and WebAssembly. Keep the active project and CI focused
+  on the Windows x64 application and x86 screensaver until cross-platform work
+  has a dedicated support and QA plan.
 - [ ] Compare long-run scene order, timing, day/night transitions, and visual
   output against the [11-hour recording](https://www.youtube.com/watch?v=l8D6qppreiI).
   Use it only as an observation point, never as a bundled or downloaded asset.
-- [ ] Compare the Linux video-wrapper tradeoffs in
-  [vasartori/jhonny-castaway-screensaver](https://github.com/vasartori/jhonny-castaway-screensaver):
-  random starting offsets, day/night ranges, December selection, XScreenSaver
-  embedding, and the difference between video playback and live emulation.
 - [ ] Compare appearance and observable behavior with
   [castaway.xesf.net](https://castaway.xesf.net/) across representative scenes.
 - [ ] Review [tallPete/JohnnyCastaway](https://github.com/tallPete/JohnnyCastaway)
