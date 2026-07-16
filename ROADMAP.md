@@ -46,7 +46,7 @@ Target: immediately after integration.
   Saver preview host and exits cleanly.
 - [x] Re-run the all-TTM stability sweep and check for crashes, resource leaks,
   missing-resource failures, and content-switch regressions.
-- [ ] Run both GitHub Actions workflows and retain successful x64 and x86
+- [x] Run both GitHub Actions workflows and retain successful x64 and x86
   artifacts for release testing.
 - [x] Perform a final source/data-boundary scan and verify the documented archive
   hashes and clean-clone build instructions.
@@ -67,8 +67,8 @@ remained healthy for the final 25-second run. CI remains the final Phase 1 gate.
 
 Target: after all Phase 1 gates pass.
 
-- [ ] Merge the verified x86 branch into `johnnycx86/main`.
-- [ ] Tag the first release candidate and prepare concise release notes covering
+- [x] Merge the verified x86 branch into `johnnycx86/main`.
+- [x] Tag the first release candidate and prepare concise release notes covering
   x64 application support, x86 screensaver support, required user-supplied
   data, known missing effects, controls, and unsigned-binary expectations.
 - [ ] Test the downloadable artifacts on a clean Windows account or machine.
@@ -85,19 +85,19 @@ Exit criteria:
 
 Target: directly after the stable release.
 
-- [ ] Inventory all public DrWize projects and give each one a consistent entry
+- [x] Inventory all DrWize projects and give each one a consistent entry
   in `DrWize/Home`, including status, purpose, technology, repository link, and
   a representative image where useful.
-- [ ] Treat `DrWize/Home` as the portfolio and discovery hub only. Keep every
+- [x] Treat `DrWize/Home` as the portfolio and discovery hub only. Keep every
   project's source, releases, issues, detailed documentation, and development
   history in that project's own repository.
-- [ ] Add JohnnyCx86 as one portfolio entry linking to the dedicated
+- [x] Add JohnnyCx86 as one portfolio entry linking to the dedicated
   `DrWize/JohnnyCx86` repository and its releases; do not copy or mirror the
   JohnnyCx86 source tree into `DrWize/Home`.
 - [ ] Give the JohnnyCx86 entry a concise x64/x86 summary, CI/release status,
   screenshot, and source/data-policy note. Keep build instructions and
   troubleshooting in the dedicated JohnnyCx86 repository.
-- [ ] Organize the portfolio so completed, active, experimental, and archived
+- [x] Organize the portfolio so completed, active, experimental, and archived
   projects are easy to distinguish without implying that JohnnyCx86 is the
   whole purpose of `DrWize/Home`.
 
@@ -124,6 +124,12 @@ Exit criteria:
 
 - Default display choices are based on physical-resolution measurements.
 - Unsupported or slow shader paths fail safely to a usable mode.
+
+Progress on 2026-07-16: all four production CRT paths held 30 FPS at a physical
+3840x1080 output on an RTX 4080, with 0.15–0.19 ms CPU submission time. Results
+and limitations are recorded in `docs/PERFORMANCE.md`. The four required target
+resolutions and a lower-powered GPU remain physical-hardware gates, so automatic
+defaults and Phases 5–7 are intentionally not advanced yet.
 
 ## Phase 5 — Optional CRT modes (P2)
 
