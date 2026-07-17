@@ -712,9 +712,9 @@ func TestCompactMiddle(t *testing.T) {
 
 func TestChooseDefaultDataDirectory(t *testing.T) {
 	root := t.TempDir()
-	executablePath := filepath.Join(root, "JohnnyCx86", "build", "JohnnyCastaway-x64.exe")
-	workingDirectory := filepath.Join(root, "JohnnyCx86")
-	besideExecutable := filepath.Join(root, "JohnnyCx86", "build", "scrantic")
+	executablePath := filepath.Join(root, "JohnnyProject", "build", "JohnnyCastaway.exe")
+	workingDirectory := filepath.Join(root, "JohnnyProject")
+	besideExecutable := filepath.Join(root, "JohnnyProject", "build", "scrantic")
 	workspaceSibling := filepath.Join(root, "scrantic")
 
 	validDirectory := workspaceSibling

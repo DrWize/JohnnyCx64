@@ -1,5 +1,5 @@
 param(
-    [string]$Artifact = (Join-Path $PSScriptRoot 'JohnnyCastaway-x86.scr'),
+    [string]$Artifact = (Join-Path $PSScriptRoot 'JohnnyCastaway.scr'),
     [string]$DataDirectory = ''
 )
 
@@ -70,8 +70,8 @@ function Stop-JohnnyProcess {
     $Process.Dispose()
 }
 
-if (![Environment]::Is64BitOperatingSystem) {
-    throw 'WOW64 QA requires a 64-bit Windows host'
+if (![Environment]::Is64BitOperatingSystem -or ![Environment]::Is64BitProcess) {
+    throw 'Native screensaver QA requires a 64-bit Windows host and PowerShell process'
 }
 
 $common = "--mute --data-dir `"$dataPath`""

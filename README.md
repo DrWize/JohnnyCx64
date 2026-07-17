@@ -1,4 +1,4 @@
-# JohnnyCx86 — Johnny Castaway 2026
+# Johnny Castaway 2026
 
 Johnny Castaway 2026 Edition is a Go/Raylib port developed from
 [deckarep/Johnny-Castaway-2026-Public](https://github.com/deckarep/Johnny-Castaway-2026-Public),
@@ -13,30 +13,25 @@ The Windows application is written in Go and uses Raylib for graphics and
 audio. Sierra/Dynamix archives and sounds are loaded from a user-selected local
 folder and are never embedded in the executable or repository. See
 [Data-file and copyright policy](#data-file-and-copyright-policy).
-This project currently targets Windows only. macOS, Linux, and WebAssembly were
-evaluated and deliberately deferred so release work stays focused on the Windows
-x64 application and x86 screensaver. See
+This project targets 64-bit Windows 11 only. macOS, Linux, WebAssembly, and
+legacy 32-bit Windows were deliberately deferred or removed so release work
+stays focused on one native x64 application and screensaver. See
 [the roadmap evaluations](docs/ROADMAP_EVALUATIONS.md).
 
-### Windows x64 application and x86 screensaver builds
+### Native Windows 11 x64 builds
 
-Run `build\build.bat` from a Command Prompt to create the latest executable at
-`build\JohnnyCastaway-x64.exe` and a timestamped copy under `build\history\`.
-Timestamped names use `JohnnyCastaway-x64-YYYYMMDD-HHMMSS-mmm.exe`; previous
-copies are retained so different builds can be tested side by side. The build requires 64-bit Go in
+Run `build\build.bat` from a Command Prompt to create
+`build\JohnnyCastaway.exe` and `build\JohnnyCastaway.scr`, plus timestamped
+copies under `build\history\`. Previous copies are retained so different builds
+can be tested side by side. The build requires 64-bit Go in
 `C:\Program Files\Go` and the MSYS2
 `mingw-w64-x86_64-gcc` toolchain in `C:\msys64\mingw64`. The script generates
-the amd64 Windows resource object, builds a PE32+ GUI executable, and removes
-the temporary object. The executable requires the user's original data folder
-at runtime. Set `MSYS2_ROOT` before running the scripts when MSYS2 is installed
+amd64 Windows resource objects and builds both files as native PE32+ GUI
+programs. The application requires the user's original data folder at runtime.
+Set `MSYS2_ROOT` before running the script when MSYS2 is installed
 somewhere other than `C:\msys64`; the CI workflow uses this portable path.
-
-Run `build\build_x86.bat` to create `build\JohnnyCastaway-x86.scr` and a
-timestamped copy under `build\history\`. This build uses `GOARCH=386` with the
-MSYS2 `mingw-w64-i686-gcc` toolchain in `C:\msys64\mingw32`. It is a PE32
-screensaver intended to run through WOW64 on supported 64-bit Windows systems.
-The separate x86 CI job runs the regression suite, checks the Go architecture
-metadata, and uploads the `.scr` artifact.
+The single Windows 11 CI job tests the project, verifies `GOARCH=amd64` on both
+outputs, and uploads the `.exe` and `.scr` together.
 
 The `.scr` implements the Windows screensaver command contract:
 
@@ -53,8 +48,8 @@ as `/s --mute --data-dir C:\Johnny`. Installing or copying the `.scr` does not
 install the original data. Unless `--data-dir` or a saved Data Files selection
 states otherwise, the EXE and SCR look for a verified folder named `scrantic`
 beside the binary, beside its containing project directory, or beside the
-current working directory. This makes development builds in `JohnnyCx86\build`
-find the existing sibling `Johnny\scrantic` directory automatically.
+current working directory. This lets development builds find a nearby verified
+`scrantic` directory automatically.
 
 Local development uses the following ignored directories when applicable:
 
@@ -80,7 +75,7 @@ Windows command-line options:
   `RESOURCE.001`, and any optional `sound*.wav` files; this overrides the
   `scrantic` default and the selected path persists
 
-Double-click `build\JohnnyCastaway-x64.exe` to test the finished application.
+Double-click `build\JohnnyCastaway.exe` to test the finished application.
 Press `F1` for the settings and complete key guide. Press `Esc` twice within
 1.5 seconds to quit; the first press also closes an open menu or runtime log.
 Press `F` in the normal application to toggle between the centered resizable

@@ -83,7 +83,7 @@ function Read-NewLog([string]$Path, [long]$Offset) {
 }
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$exe = Join-Path $PSScriptRoot 'JohnnyCastaway-x64.exe'
+$exe = Join-Path $PSScriptRoot 'JohnnyCastaway.exe'
 if (!$DataDirectory) {
     $DataDirectory = @(
         (Join-Path $PSScriptRoot 'scrantic'),
@@ -104,7 +104,7 @@ $log = Join-Path $env:LOCALAPPDATA 'JohnnyCastaway\JohnnyCastaway.log'
 $ttms = Get-TtmNames $map $resources
 
 $existing = @(Get-CimInstance Win32_Process | Where-Object {
-    $_.Name -eq 'JohnnyCastaway-x64.exe' -and $_.ExecutablePath -eq $exe
+    $_.Name -eq 'JohnnyCastaway.exe' -and $_.ExecutablePath -eq $exe
 })
 if ($existing.Count -ne 0) {
     $ids = ($existing.ProcessId -join ', ')

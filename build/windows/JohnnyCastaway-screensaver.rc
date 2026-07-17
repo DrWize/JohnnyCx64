@@ -1,6 +1,6 @@
 #include <windows.h>
 
-1 RT_MANIFEST "JohnnyCastaway-x86.manifest"
+1 RT_MANIFEST "JohnnyCastaway.manifest"
 
 1 VERSIONINFO
  FILEVERSION 1,0,0,0
@@ -20,7 +20,7 @@ BEGIN
       VALUE "FileVersion", "1.0.0.0\0"
       VALUE "InternalName", "JohnnyCastaway\0"
       VALUE "LegalCopyright", "Engine contributors; original assets copyright their respective owners\0"
-      VALUE "OriginalFilename", "JohnnyCastaway-x86.scr\0"
+      VALUE "OriginalFilename", "JohnnyCastaway.scr\0"
       VALUE "ProductName", "Johnny Castaway 2026\0"
       VALUE "ProductVersion", "2026.1\0"
     END

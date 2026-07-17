@@ -45,7 +45,7 @@ Updated: 2026-07-17
    Completed on 2026-07-17 on `agent/fidelity-ui-rc2`, including the
    informational-UI inactivity behavior and its regression coverage.
 
-2. [ ] **Open a pull request and require both Windows CI jobs to pass.**
+2. [ ] **Open a pull request and require the Windows 11 x64 CI job to pass.**
    Review the final PR diff and artifact contents before merging into `main`.
    Do not include generated executables or original game data.
 
@@ -56,7 +56,7 @@ Updated: 2026-07-17
 
 4. [ ] **Test RC2 on a separate Windows account or machine.**
    Verify clean first launch with the default `scrantic` convention, explicit
-   `--data-dir`, saved Data Files selection, x64 startup, x86 `/c`, `/s`, and
+   `--data-dir`, saved Data Files selection, native x64 startup, `/c`, `/s`, and
    Windows Screen Saver Settings preview/install behavior. Also verify missing
    data errors, saved settings, unsigned-binary warnings, and normal input exit.
 
@@ -67,7 +67,7 @@ Updated: 2026-07-17
 
 6. [ ] **Publish the prepared `DrWize/home` portfolio update after stable.**
    Update the `agent/all-project-portfolio` branch from RC1 to the stable
-   release. Keep the x64/x86 summary, CI badges, and data-policy note. Omit the
+   release. Keep the Windows 11 x64 summary, CI badge, and data-policy note. Omit the
    screenshot unless a clearly publishable image can be produced without
    redistributing Sierra/Dynamix artwork.
 
@@ -145,8 +145,8 @@ they remain in the table only so the full 41-resource review is auditable.
   Windows integration, screensaver input, settings interface, tests, QA scripts,
   and documentation. Generated binaries, history, logs, local profiles,
   screenshots, `scrantic`, and Sierra/Dynamix data remain excluded. The final
-  gates passed with zero skipped tests, `go vet`, race-enabled tests, x64/x86
-  release builds, x86 `/c`/`/s`/preview QA, and a clean 41-TTM/Full Story sweep.
+  gates passed with zero skipped tests, `go vet`, race-enabled tests, native x64
+  release builds, `/c`/`/s`/preview QA, and a clean 41-TTM/Full Story sweep.
 - [x] Added the `F10` Data Files manager with native Windows folder browsing,
   archive-hash verification, persisted selection, Explorer access, first-run
   recovery, keyboard controls, and mouse controls.
@@ -179,7 +179,8 @@ they remain in the table only so the full 41-resource review is auditable.
   switched and wrapped, and a healthy Full Story run.
 - [x] Added automated resource, parser, renderer, configuration, story,
   navigation, and Windows command-line regression coverage.
-- [x] Built and tested current Windows x64 EXE and x86 SCR outputs.
+- [x] Migrated to a Windows 11-only native x64 codebase and built and tested
+  amd64 EXE and SCR outputs from one toolchain.
 - [x] Decided not to create replacement `FLAME.BMP` or `FLURRY.BMP` artwork for
   the stable release. Their effects remain safely omitted and documented; any
   future optional replacement must have documented authorship and licensing

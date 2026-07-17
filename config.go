@@ -293,8 +293,8 @@ func chooseDefaultDataDirectory(executablePath, workingDirectory string, valid f
 		executableDirectory := filepath.Dir(executablePath)
 		addCandidate(filepath.Join(executableDirectory, defaultFolderName))
 		addCandidate(filepath.Join(executableDirectory, "..", defaultFolderName))
-		// Development builds live in JohnnyCx86\build while the locally supplied
-		// data directory lives beside JohnnyCx86.
+		// Development builds may live in a project build folder while the locally
+		// supplied data directory lives beside the project.
 		addCandidate(filepath.Join(executableDirectory, "..", "..", defaultFolderName))
 	}
 	if workingDirectory != "" {
