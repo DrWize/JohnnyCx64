@@ -93,8 +93,11 @@ canonical archive hashes before saving a selection, so an invalid folder never
 replaces the last working setting.
 Press `D` to force the Full Story background to Day. `N` remains assigned to
 Next TTM and is not used for Night.
-The screensaver footer shows the available controls for ten seconds whenever a
-recognized control is used, so the README does not duplicate the full shortcut list.
+The sleek shortcut dock at the bottom shows every primary playback and display
+control in both desktop and screensaver modes, including the current CRT,
+scene-order, scaling, and sharpness selections. It wraps cleanly on narrower
+windows, fades after ten seconds of inactivity, and returns on mouse or keyboard
+input. Fullscreen is shown only where that control is available.
 The menu can select Full Story or any embedded TTM, and can advance to the next
 TTM or internal `SET_SCENE` tag without recreating the application window.
 After a change, a short on-screen notification shows the exact TTM now running.

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"image/color"
 	"log"
 	"sort"
 
@@ -12,6 +11,11 @@ import (
 type menuEntry struct {
 	label  string
 	target string
+}
+
+type shortcutDockItem struct {
+	key    string
+	action string
 }
 
 var (
@@ -109,7 +113,9 @@ func informationalUIOpacity(now float64) float32 {
 }
 
 func menuRevealFooter() {
-	menuFooterStarted = rl.GetTime()
+	now := rl.GetTime()
+	menuFooterStarted = now
+	uiLastActivity = now
 }
 
 func menuFooterOpacity(elapsed float64) float32 {
@@ -126,57 +132,102 @@ func menuFooterOpacity(elapsed float64) float32 {
 	return 1
 }
 
-func screensaverFooterKeyPressed() bool {
-	keys := []int32{
-		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10,
-		rl.KeyD, rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
+func shortcutDockItems(screenSaver bool) []shortcutDockItem {
+	items := []shortcutDockItem{
+		{key: "F1", action: "Settings"},
+		{key: "F2", action: "CRT " + crtFilterMode.label()},
+		{key: "F3", action: "Order " + storyPlaybackModeLabel()},
+		{key: "F4", action: "Scale " + imageScalingMode.label()},
+		{key: "F5", action: "Runtime log"},
+		{key: "F7", action: "Sharp " + fastCRTSharpnessLabel(fastCRTSharpness)},
+		{key: "F8", action: "Stats"},
+		{key: "F9", action: "Benchmark"},
+		{key: "F10", action: "Data files"},
 	}
-	for _, key := range keys {
-		if rl.IsKeyPressed(key) {
-			return true
-		}
+	if !screenSaver {
+		items = append(items, shortcutDockItem{key: "F", action: "Fullscreen"})
 	}
-	return false
+	return append(items,
+		shortcutDockItem{key: "D", action: "Day"},
+		shortcutDockItem{key: "N", action: "Next TTM"},
+		shortcutDockItem{key: "T", action: "Next scene"},
+		shortcutDockItem{key: "H", action: "Holiday"},
+		shortcutDockItem{key: "↑ ↓", action: "Select"},
+		shortcutDockItem{key: "Enter", action: "Run"},
+		shortcutDockItem{key: "Esc ×2", action: "Quit"},
+	)
 }
 
-func menuDrawScreensaverFooter() {
-	if !appSettings.screenSaver || foregroundOverlayVisible() {
+func menuDrawShortcutDock() {
+	if foregroundOverlayVisible() {
 		return
 	}
-	opacity := menuFooterOpacity(rl.GetTime() - menuFooterStarted)
+	opacity := informationalUIOpacity(rl.GetTime())
 	if opacity <= 0 {
 		return
 	}
 
-	width := int32(rl.GetScreenWidth())
-	height := int32(rl.GetScreenHeight())
-	footerHeight := int32(84)
-	y := height - footerHeight
-	background := rl.NewColor(12, 16, 24, uint8(220*opacity))
-	border := rl.NewColor(145, 165, 195, uint8(210*opacity))
-	foreground := rl.NewColor(235, 240, 248, uint8(255*opacity))
-	accent := rl.NewColor(255, 203, 80, uint8(255*opacity))
-	rl.DrawRectangle(0, y, width, footerHeight, background)
-	rl.DrawRectangle(0, y, width, 1, border)
-
-	lines := []struct {
-		text  string
-		color color.RGBA
-	}{
-		{fmt.Sprintf("F1 Settings | F2 CRT: %s | F3 Order: %s | F4 Scale: %s | F5 Log | F7 Fast: %s | F8 Stats | F9 Test",
-			crtFilterMode.label(), storyPlaybackModeLabel(), imageScalingMode.label(), fastCRTSharpnessLabel(fastCRTSharpness)), accent},
-		{"F10 Data  |  D Day  |  Up/Down Select  |  Enter Run  |  N Next TTM  |  T Scene  |  H Holiday  |  Esc twice: Quit", foreground},
-		{performanceFooterText() + "  |  Other input exits", foreground},
+	fontSize := int32(13)
+	chipHeight := float32(26)
+	gap := float32(7)
+	panelMargin := float32(16)
+	panelPadding := float32(12)
+	contentWidth := float32(rl.GetScreenWidth()) - panelMargin*2 - panelPadding*2
+	items := shortcutDockItems(appSettings.screenSaver)
+	type placedShortcut struct {
+		item shortcutDockItem
+		rect rl.Rectangle
 	}
-	for index, line := range lines {
-		fontSize := int32(15)
-		for fontSize > 10 && rl.MeasureText(line.text, fontSize) > width-24 {
-			fontSize--
+	placed := make([]placedShortcut, 0, len(items))
+	x := float32(0)
+	y := float32(0)
+	for _, item := range items {
+		label := item.key + "  " + item.action
+		chipWidth := float32(rl.MeasureText(label, fontSize)) + 22
+		if x > 0 && x+chipWidth > contentWidth {
+			x = 0
+			y += chipHeight + gap
 		}
-		textWidth := rl.MeasureText(line.text, fontSize)
-		textX := (width - textWidth) / 2
-		textY := y + 9 + int32(index)*24
-		rl.DrawText(line.text, textX, textY, fontSize, line.color)
+		placed = append(placed, placedShortcut{item: item, rect: rl.NewRectangle(x, y, chipWidth, chipHeight)})
+		x += chipWidth + gap
+	}
+
+	rowsHeight := y + chipHeight
+	headerHeight := float32(30)
+	panelHeight := panelPadding*2 + headerHeight + rowsHeight
+	panel := rl.NewRectangle(panelMargin, float32(rl.GetScreenHeight())-panelHeight-panelMargin, float32(rl.GetScreenWidth())-panelMargin*2, panelHeight)
+	background := rl.Fade(rl.NewColor(10, 14, 22, 242), opacity)
+	border := rl.Fade(rl.NewColor(116, 145, 184, 210), opacity)
+	foreground := rl.Fade(rl.NewColor(226, 233, 243, 255), opacity)
+	muted := rl.Fade(rl.NewColor(158, 171, 190, 255), opacity)
+	accent := rl.Fade(rl.NewColor(255, 197, 72, 255), opacity)
+	rl.DrawRectangleRounded(panel, 0.14, 10, background)
+	rl.DrawRectangleRoundedLinesEx(panel, 0.14, 10, 1, border)
+
+	titleY := int32(panel.Y + panelPadding + 1)
+	rl.DrawText("SHORTCUTS", int32(panel.X+panelPadding), titleY, 14, accent)
+	status := performanceFooterText()
+	if appSettings.screenSaver {
+		status += "  •  Other input exits"
+	}
+	statusSize := int32(12)
+	for statusSize > 9 && rl.MeasureText(status, statusSize) > int32(panel.Width-panelPadding*2)-110 {
+		statusSize--
+	}
+	statusWidth := rl.MeasureText(status, statusSize)
+	rl.DrawText(status, int32(panel.X+panel.Width-panelPadding)-statusWidth, titleY+1, statusSize, muted)
+
+	for _, shortcut := range placed {
+		rect := shortcut.rect
+		rect.X += panel.X + panelPadding
+		rect.Y += panel.Y + panelPadding + headerHeight
+		rl.DrawRectangleRounded(rect, 0.35, 8, rl.Fade(rl.NewColor(35, 43, 57, 238), opacity))
+		rl.DrawRectangleRoundedLinesEx(rect, 0.35, 8, 1, rl.Fade(rl.NewColor(75, 91, 115, 220), opacity))
+		textY := int32(rect.Y + (rect.Height-float32(fontSize))/2)
+		keyX := int32(rect.X + 11)
+		rl.DrawText(shortcut.item.key, keyX, textY, fontSize, accent)
+		actionX := keyX + rl.MeasureText(shortcut.item.key, fontSize) + 9
+		rl.DrawText(shortcut.item.action, actionX, textY, fontSize, foreground)
 	}
 }
 
@@ -455,11 +506,8 @@ func menuButton(rect rl.Rectangle, label string) bool {
 }
 
 func menuUpdateAndDraw() {
-	if appSettings.screenSaver && screensaverFooterKeyPressed() {
-		menuRevealFooter()
-	}
 	menuDrawStatus()
-	menuDrawScreensaverFooter()
+	menuDrawShortcutDock()
 	controlDown := rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)
 	if rl.IsKeyPressed(rl.KeyF) && !controlDown && !traceVisible && !appSettings.screenSaver && appSettings.previewParent == 0 {
 		grToggleFullscreen()

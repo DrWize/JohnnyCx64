@@ -912,6 +912,30 @@ func TestInformationalUIActivityAndWake(t *testing.T) {
 	}
 }
 
+func TestShortcutDockShowsPrimaryControls(t *testing.T) {
+	keys := func(items []shortcutDockItem) map[string]bool {
+		result := make(map[string]bool, len(items))
+		for _, item := range items {
+			result[item.key] = true
+		}
+		return result
+	}
+
+	desktop := keys(shortcutDockItems(false))
+	for _, key := range []string{"F1", "F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10", "F", "D", "N", "T", "H", "↑ ↓", "Enter", "Esc ×2"} {
+		if !desktop[key] {
+			t.Errorf("desktop shortcut dock is missing %q", key)
+		}
+	}
+	screenSaver := keys(shortcutDockItems(true))
+	if screenSaver["F"] {
+		t.Fatal("screensaver shortcut dock advertises unavailable fullscreen control")
+	}
+	if len(screenSaver) != len(desktop)-1 {
+		t.Fatalf("screensaver shortcut count = %d, desktop = %d", len(screenSaver), len(desktop))
+	}
+}
+
 func TestDisplayViewportAt32By9Resolutions(t *testing.T) {
 	tests := []struct {
 		width, height       float32
