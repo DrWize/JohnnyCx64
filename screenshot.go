@@ -52,7 +52,7 @@ func screenshotMetadata(now time.Time) []pngTextTag {
 		{key: "Title", value: "Johnny Castaway"},
 		{key: "Software", value: appVersionLabel()},
 		{key: "Creation Time", value: now.Format(time.RFC3339)},
-		{key: "CRT Filter", value: crtFilterMode.label()},
+		{key: "Display Filter", value: crtFilterMode.label()},
 		{key: "CRT Sharpness", value: fastCRTSharpnessLabel(fastCRTSharpness)},
 		{key: "Image Scaling", value: imageScalingMode.label()},
 		{key: "Aspect Mode", value: aspect},

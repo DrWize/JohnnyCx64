@@ -70,7 +70,8 @@ Windows command-line options:
 * `--fit` - override a saved stretch preference and preserve 4:3
 * `--ttm NAME.TTM` - play one TTM resource directly for comparison or testing
 * `--menu` - open the otherwise hidden menu immediately (useful for testing)
-* `--crt MODE` - override CRT mode with `off`, `lightweight`, `fast`, or `lottes`
+* `--crt MODE` - override the display filter with `off`, `lightweight`, `fast`,
+  `hdr`, or `lottes` (the option name remains for configuration compatibility)
 * `--data-dir PATH` - folder containing the original `RESOURCE.MAP`,
   `RESOURCE.001`, and any optional `sound*.wav` files; this overrides the
   `scrantic` default and the selected path persists
@@ -91,7 +92,7 @@ replaces the last working setting.
 Press `F12` to save a timestamped PNG screenshot directly to
 `Pictures\Johnny Castaway`. A confirmation containing the saved path appears
 after the capture. Each PNG embeds searchable text metadata for the application
-version, capture time, CRT filter and sharpness, image scaling, aspect mode,
+version, capture time, display filter and sharpness, image scaling, aspect mode,
 scene order, content, sky and holiday modes, window mode, resolution, and mute
 setting.
 Press `D` to force the Full Story background to Day. `N` remains assigned to
@@ -141,7 +142,7 @@ title screen is skipped for preview changes. Automatic mode uses night before
 and wrap after leaving the native 640-pixel canvas. The same control is available
 as the `Sky` button in Settings.
 
-The menu also contains live CRT, scene-order, image-scaling, Fast CRT
+The menu also contains live display-filter, scene-order, image-scaling, Fast CRT
 sharpness, performance-HUD, and shader-benchmark controls.
 
 `In order` still observes the story's day and scene compatibility rules, but
@@ -149,7 +150,7 @@ chooses the next eligible scene in the original scene table instead of randomly.
 The renderer first composites the scene at its native 640x480 resolution.
 Nearest and bilinear scale that completed frame directly; Scale2x applies its
 edge-aware rules to a sharp 1280x960 intermediate before final monitor scaling.
-CRT remains an independent display setting. These settings persist
+The filter remains an independent display setting. These settings persist
 between runs. The settings header and error dialogs show the product/build ID.
 
 Normal window/fullscreen mode, mute, stretch/4:3 fit, and monitor selection also
@@ -171,23 +172,32 @@ The original `Fast` mode uses one inexpensive Raylib-native pass with manual
 sharp interpolation, brightness-dependent scanline width, gamma-aware shading,
 and a three-column RGB aperture grille. It always consumes the native completed
 frame, like Lottes, and performs its own scaling. `F7` changes its sharpness
-without changing CRT mode, and the selected preset persists between sessions.
+without changing the active filter, and the selected preset persists between sessions.
 Shader compilation failure falls back to Lightweight. Unsupported shader modes
-are also removed from the live CRT cycle and the F9 benchmark for that run.
+are also removed from the live filter cycle and the F9 benchmark for that run.
 
-Changing CRT mode, scaling mode, or Fast CRT sharpness displays the performance
+`HDR Pop` is a custom single-pass GLSL 330 enhancement for large HDR-capable
+screens. It preserves the native pixel-art silhouette while adding restrained
+local clarity, color separation, and a soft highlight shoulder without crushing
+black. Raylib currently presents an SDR Windows swapchain, so the mode supplies
+an HDR-style SDR image for Windows HDR and the display to tone-map; it does not
+claim HDR10 output or emit HDR metadata. Compilation failure falls back safely
+and removes HDR Pop from the live filter cycle and benchmark for that run.
+
+Changing filter mode, scaling mode, or Fast CRT sharpness displays the performance
 HUD for ten seconds. `F8` pins it across sessions. It reports actual FPS against
 the 30 FPS target, CPU frame-submission time, percentage of the 33.3 ms CPU
 budget, active modes, output resolution, measured CPU impact, and the expected
 relative GPU cost. The settings panel also shows the comparison guide:
-`Off: Minimal`, `Lightweight: Very low`, `Fast: Low`, and `Lottes: High`.
+`Off: Minimal`, `Lightweight: Very low`, `Fast: Low`, `HDR Pop: Moderate`, and
+`Lottes: High`.
 GPU shader execution is asynchronous, so CPU submission time is labeled
 separately and is not presented as a false uncapped-GPU FPS estimate.
 
-`F9` runs a sixteen-second comparison without stopping playback: Off,
-Lightweight, Fast, and Lottes are each measured for four seconds. The original
-CRT mode is restored afterward and the result table remains visible for twenty
-seconds. Run fullscreen on the target monitor—for example with `--monitor N`
+`F9` runs a twenty-second comparison without stopping playback: Off,
+Lightweight, Fast, HDR Pop, and Lottes are each measured for four seconds. The
+original filter mode is restored afterward and the result table remains visible
+for twenty seconds. Run fullscreen on the target monitor—for example with `--monitor N`
 and `--fullscreen`—to collect meaningful native 4K or Neo G9 results.
 
 See [the display performance matrix](docs/PERFORMANCE.md) for recorded physical

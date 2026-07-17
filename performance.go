@@ -15,7 +15,7 @@ const (
 	performanceBenchmarkResultSeconds = 20.0
 )
 
-var performanceBenchmarkModes = []crtFilter{crtOff, crtLightweight, crtFast, crtLottes}
+var performanceBenchmarkModes = []crtFilter{crtOff, crtLightweight, crtFast, crtHDR, crtLottes}
 
 type performanceBenchmarkResult struct {
 	mode     crtFilter
@@ -161,6 +161,8 @@ func performanceExpectedImpact() string {
 		return "Very low"
 	case crtFast:
 		return "Low"
+	case crtHDR:
+		return "Moderate"
 	case crtLottes:
 		return "High"
 	default:
@@ -178,9 +180,9 @@ func performanceModeLabel() string {
 	}
 	scale := imageScalingMode.label()
 	if crtFilterMode.usesNativeFrame() {
-		scale += " (CRT resampling)"
+		scale += " (filter resampling)"
 	}
-	return fmt.Sprintf("CRT %s | Scale %s", crt, scale)
+	return fmt.Sprintf("Filter %s | Scale %s", crt, scale)
 }
 
 func performanceFooterText() string {

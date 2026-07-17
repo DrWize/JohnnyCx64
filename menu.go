@@ -141,7 +141,7 @@ func menuFooterOpacity(elapsed float64) float32 {
 func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 	items := []shortcutDockItem{
 		{key: "F1", action: "Settings"},
-		{key: "F2", action: "CRT " + crtFilterMode.label()},
+		{key: "F2", action: "Filter " + crtFilterMode.label()},
 		{key: "F3", action: "Order " + storyPlaybackModeLabel()},
 		{key: "F4", action: "Scale " + imageScalingMode.label()},
 		{key: "F5", action: "Runtime log"},
@@ -570,7 +570,7 @@ func menuUpdateAndDraw() {
 	}
 	if rl.IsKeyPressed(rl.KeyF2) {
 		cycleCRTFilter()
-		menuShowStatus("CRT filter: " + crtFilterMode.label())
+		menuShowStatus("Display filter: " + crtFilterMode.label())
 	}
 	if rl.IsKeyPressed(rl.KeyF3) {
 		storyTogglePlaybackMode()
@@ -680,7 +680,7 @@ func menuUpdateAndDraw() {
 		rl.DrawText(menuSceneMessage, int32(panelX+24), int32(panelY+230+contentOffset), 16, rl.LightGray)
 	}
 	guideY := panelY + panelH - 236
-	rl.DrawText("CRT impact:", int32(panelX+24), int32(guideY), 15, rl.LightGray)
+	rl.DrawText("Filter impact:", int32(panelX+24), int32(guideY), 15, rl.LightGray)
 	githubFontSize := int32(15)
 	githubWidth := rl.MeasureText(projectGitHubLabel, githubFontSize)
 	githubX := panelX + panelW - 24 - float32(githubWidth)
@@ -700,7 +700,7 @@ func menuUpdateAndDraw() {
 			menuShowStatus("Opening " + projectGitHubLabel)
 		}
 	}
-	rl.DrawText("Off: Minimal   Lightweight: Very low   Fast: Low   Lottes: High", int32(panelX+24), int32(guideY+20), 15, rl.Gold)
+	rl.DrawText("Off Minimal | Light Very low | Fast Low | HDR Moderate | Lottes High", int32(panelX+24), int32(guideY+20), 14, rl.Gold)
 
 	toggleY := panelY + panelH - 198
 	toggleGap := float32(12)
@@ -709,9 +709,9 @@ func menuUpdateAndDraw() {
 	orderButton := rl.NewRectangle(filterButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
 	scalingButton := rl.NewRectangle(orderButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
 	dayNightButton := rl.NewRectangle(scalingButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
-	if menuButton(filterButton, "CRT: "+crtFilterMode.label()) {
+	if menuButton(filterButton, "Filter: "+crtFilterMode.label()) {
 		cycleCRTFilter()
-		menuShowStatus("CRT filter: " + crtFilterMode.label())
+		menuShowStatus("Display filter: " + crtFilterMode.label())
 	}
 	if menuButton(orderButton, "Scenes: "+storyPlaybackModeLabel()) {
 		storyTogglePlaybackMode()

@@ -37,9 +37,11 @@ Primary source:
 
 ### Phase 5 outcome
 
-No additional shader is retained. Off, Lightweight, Fast, and Lottes remain the
-supported set. This avoids adding an ambiguously licensed mode or an unmeasured
-curved mode merely to increase the option count.
+No additional CRT emulation shader is retained. Off, Lightweight, Fast, and
+Lottes remain the CRT set. This avoids adding an ambiguously licensed mode or an
+unmeasured curved mode merely to increase the option count. The later custom
+HDR Pop filter is a separate large-screen display enhancement, not a CRT
+emulation or an import of either evaluated shader.
 
 ## Phase 6 — missing effects and fidelity
 

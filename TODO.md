@@ -45,8 +45,8 @@ unless it exposes a stability, data-safety, or fidelity regression.
 7. [ ] **Run the physical CRT performance matrix.**
    Use `F9` at 1920x1080, 3840x2160, 5120x1440, and 7680x2160, including at
    least one integrated or lower-powered GPU. Record Off, Lightweight, Fast,
-   and Lottes results. Confirm that shader work is limited to the centered 4:3
-   viewport rather than the 32:9 pillarboxes.
+   HDR Pop, and Lottes results. Confirm that shader work is limited to the
+   centered 4:3 viewport rather than the 32:9 pillarboxes.
 
 8. [ ] **Set automatic shader defaults only after physical measurements.**
    Add conservative inadequate-performance thresholds with a user override.
@@ -188,6 +188,9 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
 - [x] Added clip-zone enforcement and regression tests for drawing operations.
 - [x] Added capability-aware CRT fallback, Fast CRT sharpness presets, the `F8`
   performance display, and the `F9` comparison benchmark.
+- [x] Added the custom HDR Pop shader for large HDR-capable panels, with local
+  clarity, restrained saturation and highlight enhancement, persistence,
+  capability fallback, performance reporting, and benchmark integration.
 - [x] Added screensaver-safe Settings and Runtime Log interaction, ordinary
   input exit behavior, and `F` window/fullscreen switching while preserving
   Runtime Log `Ctrl+F` search.

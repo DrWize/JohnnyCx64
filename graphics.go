@@ -26,6 +26,7 @@ type crtFilter string
 
 type crtCapabilities struct {
 	fast   bool
+	hdr    bool
 	lottes bool
 }
 
@@ -40,15 +41,18 @@ const (
 	crtOff         crtFilter = "off"
 	crtLightweight crtFilter = "lightweight"
 	crtFast        crtFilter = "fast"
+	crtHDR         crtFilter = "hdr"
 	crtLottes      crtFilter = "lottes"
 )
 
-var detectedCRTCapabilities = crtCapabilities{fast: true, lottes: true}
+var detectedCRTCapabilities = crtCapabilities{fast: true, hdr: true, lottes: true}
 
 func (capabilities crtCapabilities) supports(mode crtFilter) bool {
 	switch mode {
 	case crtFast:
 		return capabilities.fast
+	case crtHDR:
+		return capabilities.hdr
 	case crtLottes:
 		return capabilities.lottes
 	case crtOff, crtLightweight:
@@ -62,6 +66,9 @@ func (capabilities crtCapabilities) modes() []crtFilter {
 	modes := []crtFilter{crtOff, crtLightweight}
 	if capabilities.fast {
 		modes = append(modes, crtFast)
+	}
+	if capabilities.hdr {
+		modes = append(modes, crtHDR)
 	}
 	if capabilities.lottes {
 		modes = append(modes, crtLottes)
@@ -89,7 +96,7 @@ func (capabilities crtCapabilities) next(mode crtFilter) crtFilter {
 func parseCRTFilter(value string, legacyEnabled bool) crtFilter {
 	mode := crtFilter(value)
 	switch mode {
-	case crtOff, crtLightweight, crtFast, crtLottes:
+	case crtOff, crtLightweight, crtFast, crtHDR, crtLottes:
 		return mode
 	}
 	if legacyEnabled {
@@ -104,6 +111,8 @@ func (mode crtFilter) label() string {
 		return "Lightweight"
 	case crtFast:
 		return "Fast"
+	case crtHDR:
+		return "HDR Pop"
 	case crtLottes:
 		return "Lottes"
 	default:
@@ -112,7 +121,7 @@ func (mode crtFilter) label() string {
 }
 
 func (mode crtFilter) usesNativeFrame() bool {
-	return mode == crtFast || mode == crtLottes
+	return mode == crtFast || mode == crtHDR || mode == crtLottes
 }
 
 const (
@@ -402,6 +411,62 @@ void main() {
     finalColor = vec4(color, 1.0) * fragColor;
 }`
 
+// HDR Pop is a restrained wide-screen enhancement pass for HDR-capable panels.
+// Raylib's current Windows swapchain remains SDR, so this shader produces an
+// HDR-style SDR signal for Windows and the display to tone-map rather than
+// claiming HDR10 output metadata. It preserves black, adds local clarity and
+// chroma separation, and gives bright colors a soft highlight shoulder.
+const hdrPopFragmentShader = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec2 sourceSize;
+out vec4 finalColor;
+
+vec3 toLinear(vec3 color) {
+    return pow(max(color, vec3(0.0)), vec3(2.2));
+}
+
+vec3 toDisplay(vec3 color) {
+    return pow(clamp(color, vec3(0.0), vec3(1.0)), vec3(1.0 / 2.2));
+}
+
+vec3 sampleSource(vec2 uv) {
+    vec2 halfTexel = vec2(0.5) / sourceSize;
+    return toLinear(texture(texture0, clamp(uv, halfTexel, vec2(1.0) - halfTexel)).rgb);
+}
+
+void main() {
+    vec2 pixel = fragTexCoord * sourceSize;
+    vec2 uv = (floor(pixel) + vec2(0.5)) / sourceSize;
+    vec2 texel = vec2(1.0) / sourceSize;
+
+    vec3 center = sampleSource(uv);
+    vec3 north = sampleSource(uv - vec2(0.0, texel.y));
+    vec3 south = sampleSource(uv + vec2(0.0, texel.y));
+    vec3 west = sampleSource(uv - vec2(texel.x, 0.0));
+    vec3 east = sampleSource(uv + vec2(texel.x, 0.0));
+    vec3 neighborhood = (north + south + west + east) * 0.25;
+
+    // Preserve the pixel-art silhouette while improving clarity on very large
+    // panels. Limit the detail term so palette transitions never halo heavily.
+    vec3 detail = clamp(center - neighborhood, vec3(-0.18), vec3(0.18));
+    vec3 color = max(center + detail * 0.24, vec3(0.0));
+
+    // Expand color separation without shifting neutral grays or crushing black.
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(luminance), color, 1.20);
+
+    // A small, content-derived glow lifts bright palette entries. The shoulder
+    // keeps the SDR output bounded for predictable Windows HDR tone mapping.
+    vec3 highlight = max(neighborhood - vec3(0.52), vec3(0.0));
+    color += highlight * 0.13;
+    color = color * (vec3(1.0) + 0.16 * color) /
+            (vec3(1.0) + 0.16 * color * color);
+
+    finalColor = vec4(toDisplay(color), 1.0) * fragColor;
+}`
+
 const (
 	ttmBufferBackground uint16 = iota
 	ttmBufferStoredArea
@@ -431,6 +496,7 @@ var (
 	grScale2xShader   rl.Shader
 	grCRTFastShader   rl.Shader
 	grCRTFastSharpLoc int32 = -1
+	grHDRPopShader    rl.Shader
 	grCRTLottesShader rl.Shader
 	grLayerClips      = make(map[uint32]layerClip)
 )
@@ -547,6 +613,14 @@ func graphicsInit() {
 	} else {
 		log.Printf("Fast CRT shader failed to load; falling back to the lightweight CRT filter")
 	}
+	grHDRPopShader = rl.LoadShaderFromMemory("", hdrPopFragmentShader)
+	detectedCRTCapabilities.hdr = rl.IsShaderValid(grHDRPopShader)
+	if detectedCRTCapabilities.hdr {
+		hdrSourceLocation := rl.GetShaderLocation(grHDRPopShader, "sourceSize")
+		rl.SetShaderValue(grHDRPopShader, hdrSourceLocation, []float32{screenWidth, screenHeight}, rl.ShaderUniformVec2)
+	} else {
+		log.Printf("HDR Pop shader failed to load; falling back to the lightweight filter")
+	}
 	grCRTLottesShader = rl.LoadShaderFromMemory("", crtLottesFragmentShader)
 	detectedCRTCapabilities.lottes = rl.IsShaderValid(grCRTLottesShader)
 	if detectedCRTCapabilities.lottes {
@@ -577,6 +651,10 @@ func graphicsEnd() {
 		rl.UnloadShader(grCRTFastShader)
 		grCRTFastShader.ID = 0
 		grCRTFastSharpLoc = -1
+	}
+	if grHDRPopShader.ID != 0 {
+		rl.UnloadShader(grHDRPopShader)
+		grHDRPopShader.ID = 0
 	}
 	if grCRTLottesShader.ID != 0 {
 		rl.UnloadShader(grCRTLottesShader)
@@ -900,6 +978,9 @@ func drawComposedScene() {
 	dst := rl.NewRectangle(viewport.x, viewport.y, viewport.width, viewport.height)
 	if crtFilterMode == crtFast {
 		rl.BeginShaderMode(grCRTFastShader)
+		defer rl.EndShaderMode()
+	} else if crtFilterMode == crtHDR {
+		rl.BeginShaderMode(grHDRPopShader)
 		defer rl.EndShaderMode()
 	} else if crtFilterMode == crtLottes {
 		rl.BeginShaderMode(grCRTLottesShader)

@@ -28,6 +28,7 @@ func TestParseOptions(t *testing.T) {
 	}{
 		{name: "defaults", want: appOptions{monitor: 1}},
 		{name: "Fast CRT override", args: []string{"--crt", "FAST"}, want: appOptions{monitor: 1, crt: "fast"}},
+		{name: "HDR Pop override", args: []string{"--crt", "HDR"}, want: appOptions{monitor: 1, crt: "hdr"}},
 		{
 			name: "all options",
 			args: []string{"--windowed", "--screensaver", "--mute", "--stretch", "--monitor", "2", "--ttm", "fire.ttm", "--menu", "--data-dir", "C:\\Johnny"},
@@ -56,12 +57,15 @@ func TestParseOptions(t *testing.T) {
 }
 
 func TestCRTCapabilities(t *testing.T) {
-	all := crtCapabilities{fast: true, lottes: true}
-	if got, want := all.modes(), []crtFilter{crtOff, crtLightweight, crtFast, crtLottes}; !reflect.DeepEqual(got, want) {
+	all := crtCapabilities{fast: true, hdr: true, lottes: true}
+	if got, want := all.modes(), []crtFilter{crtOff, crtLightweight, crtFast, crtHDR, crtLottes}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("all-capability modes = %#v, want %#v", got, want)
 	}
 	if got := all.next(crtLottes); got != crtOff {
 		t.Fatalf("next(lottes) = %q, want off", got)
+	}
+	if !crtHDR.usesNativeFrame() {
+		t.Fatal("HDR Pop must sample the native completed frame")
 	}
 
 	limited := crtCapabilities{}
@@ -81,6 +85,14 @@ func TestCRTCapabilities(t *testing.T) {
 	}
 	if got := fastOnly.next(crtFast); got != crtOff {
 		t.Fatalf("fast-only next(fast) = %q, want off", got)
+	}
+
+	hdrOnly := crtCapabilities{hdr: true}
+	if got := hdrOnly.next(crtLightweight); got != crtHDR {
+		t.Fatalf("HDR-only next(lightweight) = %q, want hdr", got)
+	}
+	if got := hdrOnly.fallback(crtHDR); got != crtHDR {
+		t.Fatalf("HDR fallback = %q, want hdr", got)
 	}
 }
 
@@ -868,11 +880,17 @@ func TestCRTFilterMigrationAndLabels(t *testing.T) {
 	if got := parseCRTFilter("fast", false); got != crtFast {
 		t.Fatalf("CRT mode = %q, want fast", got)
 	}
+	if got := parseCRTFilter("hdr", false); got != crtHDR {
+		t.Fatalf("HDR mode = %q, want hdr", got)
+	}
 	if got := parseCRTFilter("invalid", false); got != crtOff {
 		t.Fatalf("invalid CRT mode = %q, want off", got)
 	}
 	if crtLottes.label() != "Lottes" {
 		t.Fatalf("Lottes label = %q", crtLottes.label())
+	}
+	if crtHDR.label() != "HDR Pop" {
+		t.Fatalf("HDR label = %q", crtHDR.label())
 	}
 }
 
@@ -909,10 +927,16 @@ func TestPerformanceImpactAndCapacity(t *testing.T) {
 			t.Errorf("impact at %.1f ms = %q, want %q", test.ms, got, test.want)
 		}
 	}
+	originalFilter := crtFilterMode
+	t.Cleanup(func() { crtFilterMode = originalFilter })
+	crtFilterMode = crtHDR
+	if got := performanceExpectedImpact(); got != "Moderate" {
+		t.Fatalf("HDR Pop expected GPU impact = %q, want Moderate", got)
+	}
 }
 
 func TestPerformanceBenchmarkModeOrder(t *testing.T) {
-	want := []crtFilter{crtOff, crtLightweight, crtFast, crtLottes}
+	want := []crtFilter{crtOff, crtLightweight, crtFast, crtHDR, crtLottes}
 	if !reflect.DeepEqual(performanceBenchmarkModes, want) {
 		t.Fatalf("benchmark modes = %#v, want %#v", performanceBenchmarkModes, want)
 	}
@@ -1068,7 +1092,7 @@ func TestPNGMetadataRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	tags := []pngTextTag{
-		{key: "CRT Filter", value: "Lottes"},
+		{key: "Display Filter", value: "HDR Pop"},
 		{key: "Image Scaling", value: "Scale2x"},
 		{key: "Aspect Mode", value: "Fit 4:3"},
 	}

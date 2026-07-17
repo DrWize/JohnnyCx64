@@ -72,7 +72,7 @@ Exit criteria:
 ## Phase 4 — Real-hardware performance matrix (P1)
 
 - [ ] Run F9 benchmarks at 1920x1080, 3840x2160, 5120x1440, and 7680x2160.
-- [ ] Record Off, Lightweight, Fast, and Lottes results with GPU, monitor,
+- [ ] Record Off, Lightweight, Fast, HDR Pop, and Lottes results with GPU, monitor,
   scaling, fit/stretch, average FPS, and CPU submission time.
 - [ ] Verify that only the centered 4:3 viewport incurs shader cost on 32:9
   displays.
@@ -81,7 +81,7 @@ Exit criteria:
 - [ ] Establish conservative performance thresholds and defaults from physical
   measurements while retaining a user override.
 
-Progress: all four production CRT paths held 30 FPS at a physical 3840x1080
+Progress: the four pre-HDR production CRT paths held 30 FPS at a physical 3840x1080
 output on an RTX 4080, with 0.15–0.19 ms CPU submission time. The remaining
 targets and lower-powered hardware are documented in `docs/PERFORMANCE.md`.
 
@@ -91,7 +91,7 @@ targets and lower-powered hardware are documented in `docs/PERFORMANCE.md`.
   version.
 - [x] Evaluate GPL-2.0-or-later CRT-Geom; defer a port until the physical matrix
   can measure its intended configuration.
-- [x] Keep the current four modes until another option has a clear license,
+- [x] Keep the established CRT modes until another CRT option has a clear license,
   purpose, measured cost, persisted settings, and safe fallback. Details are in
   `docs/ROADMAP_EVALUATIONS.md`.
 

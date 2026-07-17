@@ -76,7 +76,7 @@ func parseOptions(args []string) (appOptions, error) {
 	fs.StringVar(&opts.ttm, "ttm", "", "play one TTM resource directly")
 	fs.BoolVar(&opts.menu, "menu", false, "open the hidden menu at startup")
 	fs.BoolVar(&opts.noSaveSettings, "no-save-settings", false, "do not persist settings from this session")
-	fs.StringVar(&opts.crt, "crt", "", "CRT mode: off, lightweight, fast, or lottes")
+	fs.StringVar(&opts.crt, "crt", "", "display filter: off, lightweight, fast, hdr, or lottes")
 	fs.StringVar(&opts.dataDir, "data-dir", "", "folder containing RESOURCE.MAP, RESOURCE.001, and optional sound*.wav files")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
@@ -110,8 +110,8 @@ func parseOptions(args []string) (appOptions, error) {
 	}
 	if opts.crt != "" {
 		opts.crt = strings.ToLower(opts.crt)
-		if mode := crtFilter(opts.crt); mode != crtOff && mode != crtLightweight && mode != crtFast && mode != crtLottes {
-			return opts, fmt.Errorf("crt must be off, lightweight, fast, or lottes")
+		if mode := crtFilter(opts.crt); mode != crtOff && mode != crtLightweight && mode != crtFast && mode != crtHDR && mode != crtLottes {
+			return opts, fmt.Errorf("crt must be off, lightweight, fast, hdr, or lottes")
 		}
 	}
 	return opts, nil
