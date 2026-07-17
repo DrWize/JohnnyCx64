@@ -93,7 +93,10 @@ canonical archive hashes before saving a selection, so an invalid folder never
 replaces the last working setting.
 Press `F12` to save a timestamped PNG screenshot directly to
 `Pictures\Johnny Castaway`. A confirmation containing the saved path appears
-after the capture.
+after the capture. Each PNG embeds searchable text metadata for the application
+version, capture time, CRT filter and sharpness, image scaling, aspect mode,
+scene order, content, sky and holiday modes, window mode, resolution, and mute
+setting.
 Press `D` to force the Full Story background to Day. `N` remains assigned to
 Next TTM and is not used for Night.
 The sleek shortcut dock at the bottom shows every primary playback and display

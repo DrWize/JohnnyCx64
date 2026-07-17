@@ -5,7 +5,9 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
+	"image"
 	"image/color"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
@@ -941,6 +943,45 @@ func TestScreenshotFilename(t *testing.T) {
 	when := time.Date(2026, time.July, 17, 19, 45, 12, 345000000, time.UTC)
 	if got, want := screenshotFilename(when), "Johnny-Castaway-20260717-194512.345.png"; got != want {
 		t.Fatalf("screenshot filename = %q, want %q", got, want)
+	}
+}
+
+func TestPNGMetadataRoundTrip(t *testing.T) {
+	var source bytes.Buffer
+	imageData := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	imageData.Set(0, 0, color.RGBA{R: 12, G: 34, B: 56, A: 255})
+	if err := png.Encode(&source, imageData); err != nil {
+		t.Fatal(err)
+	}
+	tags := []pngTextTag{
+		{key: "CRT Filter", value: "Lottes"},
+		{key: "Image Scaling", value: "Scale2x"},
+		{key: "Aspect Mode", value: "Fit 4:3"},
+	}
+	annotated, err := annotatePNG(source.Bytes(), tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := png.Decode(bytes.NewReader(annotated)); err != nil {
+		t.Fatalf("annotated PNG no longer decodes: %v", err)
+	}
+	metadata, err := pngTextMetadata(annotated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range tags {
+		if got := metadata[tag.key]; got != tag.value {
+			t.Errorf("metadata %q = %q, want %q", tag.key, got, tag.value)
+		}
+	}
+}
+
+func TestPNGMetadataRejectsInvalidInput(t *testing.T) {
+	if _, err := annotatePNG([]byte("not a png"), []pngTextTag{{key: "Title", value: "Johnny"}}); err == nil {
+		t.Fatal("invalid PNG was accepted")
+	}
+	if _, err := makePNGTextChunk(pngTextTag{key: "", value: "Johnny"}); err == nil {
+		t.Fatal("empty PNG metadata key was accepted")
 	}
 }
 
