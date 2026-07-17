@@ -743,6 +743,13 @@ func grUpdateDisplay(
 		const fps = 30
 		const frameDelayMS = 1000 / fps
 		time.Sleep(time.Millisecond * time.Duration(frameDelayMS))
+		if playbackPaused {
+			// Keep rendering menus and input without returning to the engine's
+			// timer-decrement path. Reset the delay origin so resume does not
+			// immediately consume all time spent paused.
+			start = rl.GetTime()
+			continue
+		}
 		if (menuVisible || dataManagerVisible) && !appSettings.screenSaver {
 			continue
 		}
@@ -779,7 +786,7 @@ func shouldExitScreenSaver(mouseMoved, interactiveMouse, otherKeyPressed bool) b
 
 func screenSaverControlPressed(overlayVisible bool) bool {
 	baseKeys := []int32{
-		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10, rl.KeyF12,
+		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10, rl.KeyF12, rl.KeySpace,
 		rl.KeyD, rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
 	}
 	for _, key := range baseKeys {
@@ -793,7 +800,7 @@ func screenSaverControlPressed(overlayVisible bool) bool {
 	overlayKeys := []int32{
 		rl.KeyUp, rl.KeyDown, rl.KeyEnter,
 		rl.KeyPageUp, rl.KeyPageDown, rl.KeyEnd, rl.KeyTab,
-		rl.KeySpace, rl.KeyF6, rl.KeyC, rl.KeyE, rl.KeyL, rl.KeyB, rl.KeyR, rl.KeyO,
+		rl.KeyF6, rl.KeyC, rl.KeyE, rl.KeyL, rl.KeyB, rl.KeyR, rl.KeyO,
 	}
 	for _, key := range overlayKeys {
 		if rl.IsKeyPressed(key) {

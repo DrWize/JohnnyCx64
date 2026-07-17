@@ -39,6 +39,7 @@ var (
 	dataManagerMessage    string
 	dataManagerValid      bool
 	dayNightStatusPending string
+	playbackPaused        bool
 )
 
 const (
@@ -144,6 +145,7 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 		{key: "F9", action: "Benchmark"},
 		{key: "F10", action: "Data files"},
 		{key: "F12", action: "Screenshot"},
+		{key: "Space", action: pauseShortcutLabel(playbackPaused)},
 	}
 	if !screenSaver {
 		items = append(items, shortcutDockItem{key: "F", action: "Fullscreen"})
@@ -157,6 +159,41 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 		shortcutDockItem{key: "Enter", action: "Run"},
 		shortcutDockItem{key: "Esc ×2", action: "Quit"},
 	)
+}
+
+func pauseShortcutLabel(paused bool) string {
+	if paused {
+		return "Resume"
+	}
+	return "Pause"
+}
+
+func setPlaybackPaused(paused bool) {
+	playbackPaused = paused
+	soundSetPaused(paused)
+	state := "Resumed"
+	if paused {
+		state = "Paused"
+	}
+	menuShowStatus("Playback: " + state)
+	menuRevealFooter()
+}
+
+func menuDrawPauseIndicator() {
+	if !playbackPaused || foregroundOverlayVisible() {
+		return
+	}
+	text := "PAUSED  •  Space to resume"
+	fontSize := int32(16)
+	paddingX := int32(16)
+	width := rl.MeasureText(text, fontSize) + paddingX*2
+	height := int32(38)
+	x := (int32(rl.GetScreenWidth()) - width) / 2
+	y := int32(16)
+	rect := rl.NewRectangle(float32(x), float32(y), float32(width), float32(height))
+	rl.DrawRectangleRounded(rect, 0.35, 8, rl.NewColor(12, 16, 24, 235))
+	rl.DrawRectangleRoundedLinesEx(rect, 0.35, 8, 1, rl.NewColor(255, 197, 72, 230))
+	rl.DrawText(text, x+paddingX, y+(height-fontSize)/2, fontSize, rl.Gold)
 }
 
 func menuDrawShortcutDock() {
@@ -508,6 +545,7 @@ func menuButton(rect rl.Rectangle, label string) bool {
 
 func menuUpdateAndDraw() {
 	menuDrawStatus()
+	menuDrawPauseIndicator()
 	menuDrawShortcutDock()
 	controlDown := rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)
 	if rl.IsKeyPressed(rl.KeyF) && !controlDown && !traceVisible && !appSettings.screenSaver && appSettings.previewParent == 0 {
@@ -555,6 +593,9 @@ func menuUpdateAndDraw() {
 	}
 	if rl.IsKeyPressed(rl.KeyF12) {
 		requestScreenshot()
+	}
+	if rl.IsKeyPressed(rl.KeySpace) && !foregroundOverlayVisible() {
+		setPlaybackPaused(!playbackPaused)
 	}
 	if rl.IsKeyPressed(rl.KeyN) {
 		menuRunNextTTM()
@@ -612,7 +653,7 @@ func menuUpdateAndDraw() {
 	buildWidth := rl.MeasureText(buildLabel, 15)
 	rl.DrawText(buildLabel, int32(panelX+panelW-24)-buildWidth, int32(panelY+26), 15, rl.Gray)
 	rl.DrawText("F1/Esc: hide  F: fullscreen  F2: CRT  F3: order  F4: scaling  F5: log  F10: data", int32(panelX+24), int32(panelY+58), 14, rl.LightGray)
-	rl.DrawText("Up/Down: choose  Enter: run  D: day  N: next TTM  T: scene  H: holiday  F7: sharp  F8: stats  F9: test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
+	rl.DrawText("Up/Down: choose  Enter: run  Space: pause  D: day  N: next TTM  T: scene  H: holiday  F7: sharp  F8: stats  F9: test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
 	if appSettings.screenSaver {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}

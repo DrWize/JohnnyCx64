@@ -63,6 +63,7 @@ func screenshotMetadata(now time.Time) []pngTextTag {
 		{key: "Window Mode", value: windowMode},
 		{key: "Resolution", value: fmt.Sprintf("%dx%d", rl.GetScreenWidth(), rl.GetScreenHeight())},
 		{key: "Muted", value: strconv.FormatBool(appSettings.mute)},
+		{key: "Paused", value: strconv.FormatBool(playbackPaused)},
 	}
 }
 

@@ -99,6 +99,10 @@ scene order, content, sky and holiday modes, window mode, resolution, and mute
 setting.
 Press `D` to force the Full Story background to Day. `N` remains assigned to
 Next TTM and is not used for Night.
+Press `Space` outside an open Settings, Data Files, or Runtime Log panel to
+pause the entire scene, including animation timers and active sound effects.
+Press `Space` again to resume without consuming the time spent paused. Runtime
+Log keeps its existing Space shortcut for pausing trace capture.
 The sleek shortcut dock at the bottom shows every primary playback and display
 control in both desktop and screensaver modes, including the current CRT,
 scene-order, scaling, and sharpness selections. It wraps cleanly on narrower

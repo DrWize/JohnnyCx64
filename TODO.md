@@ -73,6 +73,10 @@ Updated: 2026-07-17
 
 ## Completed in the current change set
 
+- [x] Added `Space` playback pause/resume outside overlays. Pause holds the
+  engine timer boundary so scenes, walking, waves, clouds, and sounds resume
+  without consuming idle time; a persistent pause badge and responsive dock
+  label show the state. Runtime Log keeps Space for trace-capture pause.
 - [x] Stabilized Johnny's walking and palm-tree occlusion. Walking now resets
   its island-relative draw offset every frame, uses bounded indexes instead of
   unsafe pointer arithmetic, preserves contiguous source-frame order, and
