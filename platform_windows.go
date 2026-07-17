@@ -91,17 +91,25 @@ func chooseDataDirectory(owner uintptr) (string, bool, error) {
 }
 
 func openDirectory(owner uintptr, directory string) error {
+	return shellOpen(owner, directory, "folder")
+}
+
+func openURL(owner uintptr, url string) error {
+	return shellOpen(owner, url, "URL")
+}
+
+func shellOpen(owner uintptr, target, description string) error {
 	verb, err := windows.UTF16PtrFromString("open")
 	if err != nil {
 		return err
 	}
-	path, err := windows.UTF16PtrFromString(directory)
+	targetPtr, err := windows.UTF16PtrFromString(target)
 	if err != nil {
 		return err
 	}
-	result, _, callErr := shellExecuteW.Call(owner, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(path)), 0, 0, swShowNormal)
+	result, _, callErr := shellExecuteW.Call(owner, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(targetPtr)), 0, 0, swShowNormal)
 	if result <= 32 {
-		return fmt.Errorf("open folder: code %d: %v", result, callErr)
+		return fmt.Errorf("open %s: code %d: %v", description, result, callErr)
 	}
 	return nil
 }

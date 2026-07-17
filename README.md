@@ -78,6 +78,8 @@ Windows command-line options:
 Double-click `build\JohnnyCastaway.exe` to test the finished application.
 Press `F1` for the settings and complete key guide. Press `Esc` twice within
 1.5 seconds to quit; the first press also closes an open menu or runtime log.
+The Settings panel shows a clickable link to the canonical
+`github.com/DrWize/JohnnyCx86` repository.
 Press `F` in the normal application to toggle between the centered resizable
 window and borderless fullscreen; the selected mode persists. `Ctrl+F` remains
 the Runtime Log search shortcut. Screensaver and preview modes do not toggle.

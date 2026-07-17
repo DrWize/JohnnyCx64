@@ -18,6 +18,11 @@ type shortcutDockItem struct {
 	action string
 }
 
+const (
+	projectGitHubURL   = "https://github.com/DrWize/JohnnyCx86"
+	projectGitHubLabel = "github.com/DrWize/JohnnyCx86"
+)
+
 var (
 	menuVisible           bool
 	menuEntries           []menuEntry
@@ -675,7 +680,26 @@ func menuUpdateAndDraw() {
 		rl.DrawText(menuSceneMessage, int32(panelX+24), int32(panelY+230+contentOffset), 16, rl.LightGray)
 	}
 	guideY := panelY + panelH - 236
-	rl.DrawText("Filter impact guide (F8 live timing, F9 comparison test)", int32(panelX+24), int32(guideY), 15, rl.LightGray)
+	rl.DrawText("CRT impact:", int32(panelX+24), int32(guideY), 15, rl.LightGray)
+	githubFontSize := int32(15)
+	githubWidth := rl.MeasureText(projectGitHubLabel, githubFontSize)
+	githubX := panelX + panelW - 24 - float32(githubWidth)
+	githubRect := rl.NewRectangle(githubX-4, guideY-3, float32(githubWidth)+8, float32(githubFontSize)+6)
+	githubHovered := rl.CheckCollisionPointRec(rl.GetMousePosition(), githubRect)
+	githubColor := rl.NewColor(125, 185, 255, 255)
+	if githubHovered {
+		githubColor = rl.NewColor(175, 215, 255, 255)
+	}
+	rl.DrawText(projectGitHubLabel, int32(githubX), int32(guideY), githubFontSize, githubColor)
+	rl.DrawLine(int32(githubX), int32(guideY)+githubFontSize+1, int32(githubX)+githubWidth, int32(guideY)+githubFontSize+1, githubColor)
+	if githubHovered && rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
+		if err := openURL(uintptr(rl.GetWindowHandle()), projectGitHubURL); err != nil {
+			log.Printf("settings: open GitHub link: %v", err)
+			menuShowStatus("Could not open GitHub: " + err.Error())
+		} else {
+			menuShowStatus("Opening " + projectGitHubLabel)
+		}
+	}
 	rl.DrawText("Off: Minimal   Lightweight: Very low   Fast: Low   Lottes: High", int32(panelX+24), int32(guideY+20), 15, rl.Gold)
 
 	toggleY := panelY + panelH - 198
