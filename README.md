@@ -91,6 +91,9 @@ browse, `R` to recheck the current folder, `O` to open it in Explorer, `F1` to
 return to Settings, and `Esc` or `F10` to close. The manager verifies both
 canonical archive hashes before saving a selection, so an invalid folder never
 replaces the last working setting.
+Press `F12` to save a timestamped PNG screenshot directly to
+`Pictures\Johnny Castaway`. A confirmation containing the saved path appears
+after the capture.
 Press `D` to force the Full Story background to Day. `N` remains assigned to
 Next TTM and is not used for Night.
 The sleek shortcut dock at the bottom shows every primary playback and display

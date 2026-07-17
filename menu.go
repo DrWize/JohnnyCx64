@@ -143,6 +143,7 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 		{key: "F8", action: "Stats"},
 		{key: "F9", action: "Benchmark"},
 		{key: "F10", action: "Data files"},
+		{key: "F12", action: "Screenshot"},
 	}
 	if !screenSaver {
 		items = append(items, shortcutDockItem{key: "F", action: "Fullscreen"})
@@ -551,6 +552,9 @@ func menuUpdateAndDraw() {
 		} else {
 			menuShowStatus("Shader benchmark stopped")
 		}
+	}
+	if rl.IsKeyPressed(rl.KeyF12) {
+		requestScreenshot()
 	}
 	if rl.IsKeyPressed(rl.KeyN) {
 		menuRunNextTTM()

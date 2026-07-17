@@ -4,12 +4,21 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
+
+func picturesDirectory() (string, error) {
+	root, err := windows.KnownFolderPath(windows.FOLDERID_Pictures, windows.KF_FLAG_DEFAULT)
+	if err != nil {
+		return "", fmt.Errorf("find Pictures folder: %w", err)
+	}
+	return filepath.Join(root, "Johnny Castaway"), nil
+}
 
 const (
 	mbOK        = 0x00000000

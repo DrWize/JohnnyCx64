@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	rl "github.com/gen2brain/raylib-go/raylib"
 )
@@ -922,7 +923,7 @@ func TestShortcutDockShowsPrimaryControls(t *testing.T) {
 	}
 
 	desktop := keys(shortcutDockItems(false))
-	for _, key := range []string{"F1", "F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10", "F", "D", "N", "T", "H", "↑ ↓", "Enter", "Esc ×2"} {
+	for _, key := range []string{"F1", "F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10", "F12", "F", "D", "N", "T", "H", "↑ ↓", "Enter", "Esc ×2"} {
 		if !desktop[key] {
 			t.Errorf("desktop shortcut dock is missing %q", key)
 		}
@@ -933,6 +934,13 @@ func TestShortcutDockShowsPrimaryControls(t *testing.T) {
 	}
 	if len(screenSaver) != len(desktop)-1 {
 		t.Fatalf("screensaver shortcut count = %d, desktop = %d", len(screenSaver), len(desktop))
+	}
+}
+
+func TestScreenshotFilename(t *testing.T) {
+	when := time.Date(2026, time.July, 17, 19, 45, 12, 345000000, time.UTC)
+	if got, want := screenshotFilename(when), "Johnny-Castaway-20260717-194512.345.png"; got != want {
+		t.Fatalf("screenshot filename = %q, want %q", got, want)
 	}
 }
 

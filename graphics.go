@@ -656,7 +656,7 @@ func grUpdateDisplay(
 		mouseButtonPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft) ||
 			rl.IsMouseButtonPressed(rl.MouseButtonRight) ||
 			rl.IsMouseButtonPressed(rl.MouseButtonMiddle)
-		uiObserveActivity(rl.GetTime(), mousePosition, mouseButtonPressed, queuedKey != 0)
+		uiObserveActivity(rl.GetTime(), mousePosition, mouseButtonPressed, queuedKey != 0 && queuedKey != rl.KeyF12)
 		if rl.IsKeyReleased(rl.KeyLeftShift) {
 			debugEnabled = !debugEnabled
 		}
@@ -672,6 +672,17 @@ func grUpdateDisplay(
 		rl.BeginDrawing()
 		defer func() {
 			rl.EndDrawing()
+			if screenshotRequested {
+				screenshotRequested = false
+				path, err := captureScreenshot()
+				if err != nil {
+					log.Printf("screenshot failed: %v", err)
+					menuShowStatus("Screenshot failed: " + err.Error())
+				} else {
+					log.Printf("screenshot saved: %s", path)
+					menuShowStatus("Screenshot saved: " + compactMiddle(path, 58))
+				}
+			}
 			performanceRecord(rl.GetTime() - renderStarted)
 		}()
 
@@ -768,7 +779,7 @@ func shouldExitScreenSaver(mouseMoved, interactiveMouse, otherKeyPressed bool) b
 
 func screenSaverControlPressed(overlayVisible bool) bool {
 	baseKeys := []int32{
-		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10,
+		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10, rl.KeyF12,
 		rl.KeyD, rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
 	}
 	for _, key := range baseKeys {
