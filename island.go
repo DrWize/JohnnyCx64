@@ -289,6 +289,13 @@ func islandCycleDayNight() string {
 
 }
 
+func islandToggleDayNight() string {
+	if islandState.night == 0 {
+		return islandSetDayNightOverride(1)
+	}
+	return islandSetDayNightOverride(0)
+}
+
 func islandSetDayNightOverride(dayNightOverride int) string {
 	islandDayNightOverride = dayNightOverride
 	islandState.night = storyNightForHour(getHour(), islandDayNightOverride)

@@ -95,8 +95,10 @@ after the capture. Each PNG embeds searchable text metadata for the application
 version, capture time, display filter and sharpness, image scaling, aspect mode,
 scene order, content, sky and holiday modes, window mode, resolution, and mute
 setting.
-Press `D` to force the Full Story background to Day. `N` remains assigned to
-Next TTM and is not used for Night.
+Press `D` to toggle the Full Story background directly between Day and Night.
+When Sky is Automatic, the first press switches away from the currently shown
+clock-selected state; subsequent presses alternate Day and Night. `N` remains
+assigned to Next TTM.
 Press `Space` outside an open Settings, Data Files, or Runtime Log panel to
 pause the entire scene, including animation timers and active sound effects.
 Press `Space` again to resume without consuming the time spent paused. Runtime
@@ -140,7 +142,7 @@ content session is restarted so the new background appears immediately, while th
 title screen is skipped for preview changes. Automatic mode uses night before
 06:00 and from 18:00 onward. Clouds move independently across either background
 and wrap after leaving the native 640-pixel canvas. The same control is available
-as the `Sky` button in Settings.
+as the `Sky` button in Settings; `D` provides the quicker Day/Night-only toggle.
 
 The menu also contains live display-filter, scene-order, image-scaling, Fast CRT
 sharpness, performance-HUD, and shader-benchmark controls.

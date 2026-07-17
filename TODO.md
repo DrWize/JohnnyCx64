@@ -181,8 +181,8 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
   explicit `--data-dir` and a saved Data Files selection higher priority.
 - [x] Restored moving clouds with one-time sprite loading, reference-correct
   vertical placement, 1–2 pixel movement, wrapping, and regression coverage.
-- [x] Added the Settings `Sky` control for Day, Night, and Automatic; added `D`
-  for Day while preserving `N` for Next TTM.
+- [x] Added the Settings `Sky` control for Day, Night, and Automatic; made `D`
+  toggle directly between Day and Night while preserving `N` for Next TTM.
 - [x] Fixed automatic day/night state so daytime clears a previous night state;
   automatic mode uses day from 06:00 through 17:59.
 - [x] Added clip-zone enforcement and regression tests for drawing operations.

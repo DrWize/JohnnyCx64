@@ -190,7 +190,7 @@ func TestDayNightPreviewCycle(t *testing.T) {
 	}
 }
 
-func TestSetDayNightPreview(t *testing.T) {
+func TestDayNightToggle(t *testing.T) {
 	oldOverride := islandDayNightOverride
 	oldNight := islandState.night
 	t.Cleanup(func() {
@@ -198,11 +198,27 @@ func TestSetDayNightPreview(t *testing.T) {
 		islandState.night = oldNight
 	})
 
-	if got := islandSetDayNightOverride(0); got != "Day" {
-		t.Fatalf("day preview = %q, want Day", got)
+	islandDayNightOverride = -1
+	islandState.night = 0
+	if got := islandToggleDayNight(); got != "Night" {
+		t.Fatalf("toggle from automatic day = %q, want Night", got)
+	}
+	if islandDayNightOverride != 1 || islandState.night != 1 {
+		t.Fatalf("night toggle state: override=%d night=%v", islandDayNightOverride, islandState.night)
+	}
+	if got := islandToggleDayNight(); got != "Day" {
+		t.Fatalf("toggle from night = %q, want Day", got)
 	}
 	if islandDayNightOverride != 0 || islandState.night != 0 {
-		t.Fatalf("day preview did not force daytime: override=%d night=%v", islandDayNightOverride, islandState.night)
+		t.Fatalf("day toggle state: override=%d night=%v", islandDayNightOverride, islandState.night)
+	}
+
+	// Automatic night should toggle to Day on the first key press rather than
+	// blindly selecting Night again.
+	islandDayNightOverride = -1
+	islandState.night = 1
+	if got := islandToggleDayNight(); got != "Day" {
+		t.Fatalf("toggle from automatic night = %q, want Day", got)
 	}
 }
 

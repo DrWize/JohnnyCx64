@@ -156,7 +156,7 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 		items = append(items, shortcutDockItem{key: "F", action: "Fullscreen"})
 	}
 	return append(items,
-		shortcutDockItem{key: "D", action: "Day"},
+		shortcutDockItem{key: "D", action: "Day/Night"},
 		shortcutDockItem{key: "N", action: "Next TTM"},
 		shortcutDockItem{key: "T", action: "Next scene"},
 		shortcutDockItem{key: "H", action: "Holiday"},
@@ -451,8 +451,8 @@ func menuCycleDayNightPreview() {
 	menuApplyDayNightPreview(islandCycleDayNight())
 }
 
-func menuSetDayPreview() {
-	menuApplyDayNightPreview(islandSetDayNightOverride(0))
+func menuToggleDayNightPreview() {
+	menuApplyDayNightPreview(islandToggleDayNight())
 }
 
 func menuApplyDayNightPreview(label string) {
@@ -606,7 +606,7 @@ func menuUpdateAndDraw() {
 		menuRunNextTTM()
 	}
 	if rl.IsKeyPressed(rl.KeyD) && !traceVisible {
-		menuSetDayPreview()
+		menuToggleDayNightPreview()
 	}
 	if rl.IsKeyPressed(rl.KeyT) {
 		menuRunNextScene()
@@ -657,8 +657,8 @@ func menuUpdateAndDraw() {
 	buildLabel := appVersionLabel()
 	buildWidth := rl.MeasureText(buildLabel, 15)
 	rl.DrawText(buildLabel, int32(panelX+panelW-24)-buildWidth, int32(panelY+26), 15, rl.Gray)
-	rl.DrawText("F1/Esc: hide  F: fullscreen  F2: CRT  F3: order  F4: scaling  F5: log  F10: data", int32(panelX+24), int32(panelY+58), 14, rl.LightGray)
-	rl.DrawText("Up/Down: choose  Enter: run  Space: pause  D: day  N: next TTM  T: scene  H: holiday  F7: sharp  F8: stats  F9: test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
+	rl.DrawText("F1/Esc hide  F fullscreen  F2 filter  F3 order  F4 scaling  F5 log  F10 data", int32(panelX+24), int32(panelY+58), 14, rl.LightGray)
+	rl.DrawText("Up/Down choose  Enter run  Space pause  D day/night  N next TTM  T scene  H holiday  F7 sharp  F8 stats  F9 test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
 	if appSettings.screenSaver {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}
