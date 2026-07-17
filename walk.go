@@ -1,30 +1,83 @@
 package main
 
-import (
-	"unsafe"
-)
-
 var (
-	walkPath     *int = nil
-	currentSpot  int
-	currentHdg   int
-	nextSpot     int
-	nextHdg      int
-	finalSpot    int
-	finalHdg     int
-	increment    int
-	lastTurn     int
-	hasArrived   int
-	isBehindTree int
+	walkPath      []int
+	walkPathIndex int
+	currentSpot   int
+	currentHdg    int
+	nextSpot      int
+	nextHdg       int
+	finalSpot     int
+	finalHdg      int
+	increment     int
+	lastTurn      int
+	hasArrived    int
+	isBehindTree  int
 
-	// In the C code this is a pointer to a row of 4 uint16, and it references walkData
-	// I will just make it be an index to walkData.
-	// In the original it's also a static field, so we make it global.
-	data *[4]uint16 = nil
+	walkDataIndex int
 )
+
+const (
+	walkTreeTrunkSprite  = 13
+	walkTreeLeavesSprite = 12
+)
+
+type walkDrawItem struct {
+	sprite  uint16
+	x, y    int16
+	flipped bool
+	tree    bool
+}
+
+func nextWalkPathSpot() int {
+	walkPathIndex++
+	if walkPathIndex >= len(walkPath) || walkPath[walkPathIndex] == UndefNode {
+		panic("walk path ended before destination")
+	}
+	return walkPath[walkPathIndex]
+}
+
+func setWalkDataIndex(index int) {
+	if index < 0 || index >= len(walkData) {
+		panic("walk frame index out of range")
+	}
+	walkDataIndex = index
+}
+
+func advanceWalkData(count int) {
+	setWalkDataIndex(walkDataIndex + count)
+}
+
+func currentWalkData() [4]uint16 {
+	if walkDataIndex < 0 || walkDataIndex >= len(walkData) {
+		panic("walk frame index out of range")
+	}
+	return walkData[walkDataIndex]
+}
+
+func walkDrawItems(frame [4]uint16, behindTree bool) []walkDrawItem {
+	items := []walkDrawItem{{
+		sprite: frame[3], x: int16(frame[1] - 1), y: int16(frame[2]), flipped: frame[0] != 0,
+	}}
+	if behindTree {
+		// Johnny must be drawn first. The fixed trunk and leaves then cover him
+		// while he crosses the path behind the palm tree.
+		items = append(items,
+			walkDrawItem{sprite: walkTreeTrunkSprite, x: 442, y: 148, tree: true},
+			walkDrawItem{sprite: walkTreeLeavesSprite, x: 365, y: 122, tree: true},
+		)
+	}
+	return items
+}
+
+func resetWalkDrawOffset() {
+	grDx = islandState.xPos
+	grDy = islandState.yPos
+}
 
 func walkInit(fromSpot, fromHdg, toSpot, toHdg int) {
 	walkPath = calcPath(fromSpot, toSpot)
+	walkPathIndex = 0
 
 	currentSpot = fromSpot
 	currentHdg = fromHdg
@@ -38,11 +91,7 @@ func walkInit(fromSpot, fromHdg, toSpot, toHdg int) {
 		nextHdg = finalHdg
 		lastTurn = 1
 	} else {
-		// Instead of this:
-		//nextSpot = *(++walkPath);
-		// We do this:
-		walkPath = (*int)(unsafe.Add(unsafe.Pointer(walkPath), unsafe.Sizeof(int(0))))
-		nextSpot = *walkPath
+		nextSpot = nextWalkPathSpot()
 
 		nextHdg = walkDataStartHeadings[currentSpot][nextSpot]
 		lastTurn = 0
@@ -62,6 +111,10 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 	ttmSlot := ttmThread.ttmSlot
 	sur := ttmThread.ttmLayer
 	delay := 0
+	// Walking coordinates and the palm-tree occlusion sprites belong to the
+	// island. Reset their offset every frame so other TTM drawing cannot make
+	// Johnny or the tree jump.
+	resetWalkDrawOffset()
 
 	if hasArrived == 0 {
 
@@ -71,10 +124,9 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			// More than one iteration left? yes, so let's turn
 			if (((nextHdg - currentHdg) & 0x07) % 7) > 1 {
 				currentHdg = (currentHdg + increment) & 7
-				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
+				setWalkDataIndex(walkDataBookmarksTurns[currentSpot] + currentHdg)
 				if lastTurn != 0 {
-					//data += 9
-					dataPtrPlus(9)
+					advanceWalkData(9)
 				}
 
 				// The turn is over
@@ -89,11 +141,10 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 					} else {
 						isBehindTree = 0
 					}
-					data = &walkData[walkDataBookmarks[currentSpot][nextSpot]]
+					setWalkDataIndex(walkDataBookmarks[currentSpot][nextSpot])
 				} else { // Else, we arrived to destination
-					data = &walkData[walkDataBookmarksTurns[finalSpot]+finalHdg]
-					//data += 9 // hands in pockets
-					dataPtrPlus(9)
+					setWalkDataIndex(walkDataBookmarksTurns[finalSpot] + finalHdg)
+					advanceWalkData(9) // hands in pockets
 					hasArrived = 1
 				}
 			}
@@ -101,22 +152,17 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			// Walking forward
 		} else {
 
-			// data++
-			dataPtrPlus(1)
+			advanceWalkData(1)
 
 			// Have we reached a spot ? So let's begin a turn...
-			if (*data)[1] == 0 {
+			if currentWalkData()[1] == 0 {
 				currentHdg = walkDataEndHeadings[currentSpot][nextSpot]
 				currentSpot = nextSpot
 
 				// What's the next heading ?
 				// And the next spot of the path to reach ?
 				if currentSpot != finalSpot {
-					// Instead of this:
-					//nextSpot = *(++walkPath);
-					// We do this:
-					walkPath = (*int)(unsafe.Add(unsafe.Pointer(walkPath), unsafe.Sizeof(int(0))))
-					nextSpot = *walkPath
+					nextSpot = nextWalkPathSpot()
 
 					nextHdg = walkDataStartHeadings[currentSpot][nextSpot]
 				} else {
@@ -135,11 +181,10 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 				}
 
 				currentHdg = (currentHdg + increment) & 7
-				data = &walkData[walkDataBookmarksTurns[currentSpot]+currentHdg]
+				setWalkDataIndex(walkDataBookmarksTurns[currentSpot] + currentHdg)
 
 				if lastTurn != 0 {
-					// data += 9 // hands in pockets
-					dataPtrPlus(9)
+					advanceWalkData(9) // hands in pockets
 					if currentHdg == finalHdg {
 						hasArrived = 1
 					}
@@ -147,23 +192,22 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 			}
 		}
 
+		frame := currentWalkData()
 		debugPrintf("WALKING:  spot=%d hdg=%d next=%d - data %d %d %d %d\n",
 			currentSpot, currentHdg, nextHdg,
-			(*data)[0], (*data)[1], (*data)[2], (*data)[3])
+			frame[0], frame[1], frame[2], frame[3])
 
 		grClearScreen(sur)
-
-		if (*data)[0] != 0 {
-			grDrawSpriteFlip(sur, ttmSlot,
-				int16((*data)[1]-1), int16((*data)[2]), (*data)[3], 0)
-		} else {
-			grDrawSprite(sur, ttmSlot,
-				int16((*data)[1]-1), int16((*data)[2]), (*data)[3], 0)
-		}
-
-		if isBehindTree != 0 {
-			grDrawSprite(sur, ttmBgSlot, 442, 148, 13, 0) // trunk
-			grDrawSprite(sur, ttmBgSlot, 365, 122, 12, 0) // leafs
+		for _, item := range walkDrawItems(frame, isBehindTree != 0) {
+			slot := ttmSlot
+			if item.tree {
+				slot = ttmBgSlot
+			}
+			if item.flipped {
+				grDrawSpriteFlip(sur, slot, item.x, item.y, item.sprite, 0)
+			} else {
+				grDrawSprite(sur, slot, item.x, item.y, item.sprite, 0)
+			}
 		}
 
 		if hasArrived != 0 {
@@ -177,15 +221,4 @@ func walkAnimate(ttmThread *TTtmThread, ttmBgSlot *TTtmSlot) int {
 	}
 
 	return delay
-}
-
-// dataPtrPlus does traditional C-style pointer arithmetic, yes it's unsafe and if you don't understand it
-// then go learn how a 'puter works. It's effectively: data += count where data is a pointer to
-// [4]uint16 array.
-// NOTE: what's unclear to me is why the code above sometimes moves forward by 9 elements...
-func dataPtrPlus(count uintptr) {
-	ptr := unsafe.Pointer(data)
-
-	ptr = unsafe.Add(ptr, count*unsafe.Sizeof([4]uint16{}))
-	data = (*[4]uint16)(ptr)
 }

@@ -47,11 +47,9 @@ func calcPathRecurse(prevNode, curNode int) {
 	}
 }
 
-func calcPath(fromNode, toNode int) *int {
+func calcPath(fromNode, toNode int) []int {
 	// Note: this is certainly not the exact algorithm used in the original,
 	// but so far it is the best I could imagine to fit the need.
-
-	var res *int = nil
 
 	for i := 0; i < NumOfNodes; i++ {
 		nodeStates[i].isMarked = 0
@@ -81,10 +79,17 @@ func calcPath(fromNode, toNode int) *int {
 	//	putchar('\n');
 	//}
 
-	// NOTE: original C code, took a pointer to the 0th int
-	// in the subarray since in C arrays decay into pointers
-	// This should be equivalent.
-	res = &paths[rand.Int()%numPaths][0]
+	if numPaths == 0 {
+		panic("walk path: no route found")
+	}
+	selected := paths[rand.Int()%numPaths]
+	res := make([]int, 0, MaxPathLen)
+	for _, node := range selected {
+		res = append(res, node)
+		if node == UndefNode {
+			break
+		}
+	}
 	//if (debugMode) {
 	//
 	//	printf(" |  . chosen path: ");

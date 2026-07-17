@@ -216,6 +216,88 @@ func TestWalkInitAtDestinationTurnsInPlace(t *testing.T) {
 	}
 }
 
+func TestWalkingPathsAreBoundedAndOrdered(t *testing.T) {
+	for from := 0; from < NumOfNodes; from++ {
+		for to := 0; to < NumOfNodes; to++ {
+			path := calcPath(from, to)
+			if len(path) < 2 || path[0] != from {
+				t.Fatalf("path %d -> %d starts with %#v", from, to, path)
+			}
+			terminator := -1
+			for index, node := range path {
+				if node == UndefNode {
+					terminator = index
+					break
+				}
+				if node < 0 || node >= NumOfNodes {
+					t.Fatalf("path %d -> %d contains invalid node %d", from, to, node)
+				}
+			}
+			if terminator < 1 || path[terminator-1] != to {
+				t.Fatalf("path %d -> %d does not end at its destination: %#v", from, to, path)
+			}
+			if terminator+1 != len(path) {
+				t.Fatalf("path %d -> %d contains frames after its terminator: %#v", from, to, path)
+			}
+		}
+	}
+}
+
+func TestWalkingFrameSequencesStayInSourceOrder(t *testing.T) {
+	for from := 0; from < NumOfNodes; from++ {
+		for to := 0; to < NumOfNodes; to++ {
+			start := walkDataBookmarks[from][to]
+			if start < 0 {
+				continue
+			}
+			ended := false
+			for index := start; index < len(walkData); index++ {
+				frame := walkData[index]
+				if frame[1] == 0 {
+					ended = true
+					break
+				}
+				if frame[3] > 32 {
+					t.Fatalf("walk %d -> %d frame %d uses sprite %d outside JOHNWALK order", from, to, index-start, frame[3])
+				}
+			}
+			if !ended {
+				t.Fatalf("walk %d -> %d has no terminal frame", from, to)
+			}
+		}
+	}
+}
+
+func TestWalkingTreeOcclusionIsFixedAndOrdered(t *testing.T) {
+	frame := [4]uint16{1, 400, 230, 23}
+	items := walkDrawItems(frame, true)
+	if len(items) != 3 {
+		t.Fatalf("behind-tree draw count = %d, want character, trunk, leaves", len(items))
+	}
+	if items[0].tree || items[0].sprite != 23 || items[0].x != 399 || items[0].y != 230 || !items[0].flipped {
+		t.Fatalf("character draw item = %#v", items[0])
+	}
+	if !items[1].tree || items[1].sprite != walkTreeTrunkSprite || items[1].x != 442 || items[1].y != 148 {
+		t.Fatalf("tree trunk draw item = %#v", items[1])
+	}
+	if !items[2].tree || items[2].sprite != walkTreeLeavesSprite || items[2].x != 365 || items[2].y != 122 {
+		t.Fatalf("tree leaves draw item = %#v", items[2])
+	}
+
+	oldIslandX, oldIslandY := islandState.xPos, islandState.yPos
+	oldDX, oldDY := grDx, grDy
+	t.Cleanup(func() {
+		islandState.xPos, islandState.yPos = oldIslandX, oldIslandY
+		grDx, grDy = oldDX, oldDY
+	})
+	islandState.xPos, islandState.yPos = 7, -3
+	grDx, grDy = 400, 500
+	resetWalkDrawOffset()
+	if grDx != 7 || grDy != -3 {
+		t.Fatalf("walk/tree offset = (%d,%d), want stable island offset (7,-3)", grDx, grDy)
+	}
+}
+
 func TestNextTTMSceneIndex(t *testing.T) {
 	slot := &TTtmSlot{
 		dataSize: 100,

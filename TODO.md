@@ -73,6 +73,11 @@ Updated: 2026-07-17
 
 ## Completed in the current change set
 
+- [x] Stabilized Johnny's walking and palm-tree occlusion. Walking now resets
+  its island-relative draw offset every frame, uses bounded indexes instead of
+  unsafe pointer arithmetic, preserves contiguous source-frame order, and
+  always draws Johnny before the fixed trunk and leaves while he passes behind
+  the tree. All 41 TTMs passed the 2,460-advance stability gate afterward.
 - [x] Completed the final local review of renderer, resource/configuration,
   Windows integration, screensaver input, settings interface, tests, QA scripts,
   and documentation. Generated binaries, history, logs, local profiles,
