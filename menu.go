@@ -15,19 +15,26 @@ type menuEntry struct {
 }
 
 var (
-	menuVisible       bool
-	menuEntries       []menuEntry
-	menuSelection     int
-	currentContent    string
-	menuStatusText    string
-	menuStatusUntil   float64
-	menuSceneMessage  string
-	crtFilterMode     crtFilter
-	imageScalingMode  imageScaling
-	fastCRTSharpness  = fastCRTBalanced
-	menuFooterStarted float64
-	escapeQuitArmed   bool
-	escapeQuitAt      float64
+	menuVisible           bool
+	menuEntries           []menuEntry
+	menuSelection         int
+	currentContent        string
+	menuStatusText        string
+	menuStatusUntil       float64
+	menuSceneMessage      string
+	crtFilterMode         crtFilter
+	imageScalingMode      imageScaling
+	fastCRTSharpness      = fastCRTBalanced
+	menuFooterStarted     float64
+	uiLastActivity        float64
+	uiPreviousMouse       rl.Vector2
+	uiMouseInitialized    bool
+	escapeQuitArmed       bool
+	escapeQuitAt          float64
+	dataManagerVisible    bool
+	dataManagerMessage    string
+	dataManagerValid      bool
+	dayNightStatusPending string
 )
 
 const (
@@ -43,16 +50,7 @@ func menuShowStatus(text string) {
 
 func cycleCRTFilter() {
 	performanceBenchmarkCancel()
-	switch crtFilterMode {
-	case crtOff:
-		crtFilterMode = crtLightweight
-	case crtLightweight:
-		crtFilterMode = crtFast
-	case crtFast:
-		crtFilterMode = crtLottes
-	default:
-		crtFilterMode = crtOff
-	}
+	crtFilterMode = detectedCRTCapabilities.next(crtFilterMode)
 	performanceModeChanged()
 	persistDisplayPlaybackSettings()
 }
@@ -80,10 +78,34 @@ func menuInitialize(current string) {
 
 	menuSelection = menuIndexForTarget(current)
 	menuShowStatus("Now running: " + menuEntries[menuSelection].label)
+	dataManagerRefresh()
 	menuRevealFooter()
+	uiInitializeActivity(rl.GetTime(), rl.GetMousePosition())
 	if menuVisible || appSettings.windowed {
 		rl.ShowCursor()
 	}
+}
+
+func uiInitializeActivity(now float64, mouse rl.Vector2) {
+	uiLastActivity = now
+	uiPreviousMouse = mouse
+	uiMouseInitialized = true
+}
+
+func uiObserveActivity(now float64, mouse rl.Vector2, mouseButtonPressed, keyPressed bool) bool {
+	mouseMoved := uiMouseInitialized && mouse != uiPreviousMouse
+	uiPreviousMouse = mouse
+	uiMouseInitialized = true
+	if !mouseMoved && !mouseButtonPressed && !keyPressed {
+		return false
+	}
+	uiLastActivity = now
+	menuFooterStarted = now
+	return true
+}
+
+func informationalUIOpacity(now float64) float32 {
+	return menuFooterOpacity(now - uiLastActivity)
 }
 
 func menuRevealFooter() {
@@ -106,8 +128,8 @@ func menuFooterOpacity(elapsed float64) float32 {
 
 func screensaverFooterKeyPressed() bool {
 	keys := []int32{
-		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9,
-		rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
+		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10,
+		rl.KeyD, rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
 	}
 	for _, key := range keys {
 		if rl.IsKeyPressed(key) {
@@ -118,7 +140,7 @@ func screensaverFooterKeyPressed() bool {
 }
 
 func menuDrawScreensaverFooter() {
-	if !appSettings.screenSaver || menuVisible || traceVisible {
+	if !appSettings.screenSaver || foregroundOverlayVisible() {
 		return
 	}
 	opacity := menuFooterOpacity(rl.GetTime() - menuFooterStarted)
@@ -143,7 +165,7 @@ func menuDrawScreensaverFooter() {
 	}{
 		{fmt.Sprintf("F1 Settings | F2 CRT: %s | F3 Order: %s | F4 Scale: %s | F5 Log | F7 Fast: %s | F8 Stats | F9 Test",
 			crtFilterMode.label(), storyPlaybackModeLabel(), imageScalingMode.label(), fastCRTSharpnessLabel(fastCRTSharpness)), accent},
-		{"Up/Down Select  |  Enter Run  |  N Next TTM  |  T Next scene  |  H Holiday  |  Esc twice: Quit", foreground},
+		{"F10 Data  |  D Day  |  Up/Down Select  |  Enter Run  |  N Next TTM  |  T Scene  |  H Holiday  |  Esc twice: Quit", foreground},
 		{performanceFooterText() + "  |  Other input exits", foreground},
 	}
 	for index, line := range lines {
@@ -188,17 +210,90 @@ func menuIndexForTarget(target string) int {
 func menuContentChanged(target string) {
 	menuSelection = menuIndexForTarget(target)
 	menuSceneMessage = ""
-	menuShowStatus("Now running: " + menuEntries[menuSelection].label)
+	if dayNightStatusPending != "" {
+		menuSceneMessage = dayNightStatusPending
+		menuShowStatus(dayNightStatusPending)
+		dayNightStatusPending = ""
+	} else {
+		menuShowStatus("Now running: " + menuEntries[menuSelection].label)
+	}
 	menuRevealFooter()
 }
 
 func menuSetVisible(visible bool) {
 	menuVisible = visible
-	if visible || appSettings.windowed {
+	if visible || dataManagerVisible || traceVisible || appSettings.windowed {
 		rl.ShowCursor()
 	} else {
 		rl.HideCursor()
 	}
+}
+
+func foregroundOverlayVisible() bool {
+	return menuVisible || traceVisible || dataManagerVisible
+}
+
+func dataManagerSetVisible(visible bool) {
+	dataManagerVisible = visible
+	if visible {
+		menuVisible = false
+		traceSetVisible(false)
+		dataManagerRefresh()
+		rl.ShowCursor()
+	} else if !menuVisible && !traceVisible && !appSettings.windowed {
+		rl.HideCursor()
+	}
+}
+
+func dataManagerRefresh() {
+	if err := validateDataDirectory(appSettings.dataDir); err != nil {
+		dataManagerValid = false
+		dataManagerMessage = err.Error()
+		return
+	}
+	dataManagerValid = true
+	dataManagerMessage = "Verified canonical RESOURCE.MAP and RESOURCE.001"
+}
+
+func compactMiddle(value string, limit int) string {
+	runes := []rune(value)
+	if limit < 5 || len(runes) <= limit {
+		return value
+	}
+	left := (limit - 3) / 2
+	right := limit - 3 - left
+	return string(runes[:left]) + "..." + string(runes[len(runes)-right:])
+}
+
+func dataManagerChooseFolder() {
+	selected, accepted, err := chooseDataDirectory(uintptr(rl.GetWindowHandle()))
+	if err != nil {
+		dataManagerValid = false
+		dataManagerMessage = "Folder picker failed: " + err.Error()
+		return
+	}
+	if !accepted {
+		dataManagerMessage = "Folder selection canceled; current setting was kept."
+		return
+	}
+	if err := validateDataDirectory(selected); err != nil {
+		dataManagerValid = validateDataDirectory(appSettings.dataDir) == nil
+		dataManagerMessage = "Not saved: " + err.Error()
+		return
+	}
+	appSettings.dataDir = selected
+	persistDataDirectory(selected)
+	dataManagerValid = true
+	dataManagerMessage = "Verified and saved. Optional sound changes apply after restart."
+	menuShowStatus("Data folder saved: " + compactMiddle(selected, 48))
+}
+
+func dataManagerOpenFolder() {
+	if err := openDirectory(uintptr(rl.GetWindowHandle()), appSettings.dataDir); err != nil {
+		dataManagerMessage = err.Error()
+		return
+	}
+	dataManagerMessage = "Opened the current data folder."
 }
 
 func menuMoveSelection(delta int) {
@@ -256,6 +351,26 @@ func menuRunNextScene() {
 	menuShowStatus(fmt.Sprintf("Now running: %s — %s", currentContent, menuSceneMessage))
 	menuSetVisible(false)
 	log.Printf("advanced %s to scene %d (%s)", currentContent, nextTag+1, description)
+}
+
+func menuCycleDayNightPreview() {
+	menuApplyDayNightPreview(islandCycleDayNight())
+}
+
+func menuSetDayPreview() {
+	menuApplyDayNightPreview(islandSetDayNightOverride(0))
+}
+
+func menuApplyDayNightPreview(label string) {
+	menuSceneMessage = "Day/night preview: " + label
+	if currentContent == "" {
+		// Restart the Full Story content session so the background changes at
+		// once, but skip its introductory title screen for this preview action.
+		dayNightStatusPending = menuSceneMessage
+		storySkipIntroOnce = true
+		requestContentSwitch(currentContent)
+	}
+	menuShowStatus(menuSceneMessage + " (used by Full Story)")
 }
 
 func validTTMSceneIndexes(slot *TTtmSlot) []int {
@@ -331,6 +446,9 @@ func menuButton(rect rl.Rectangle, label string) bool {
 	rl.DrawRectangleRec(rect, background)
 	rl.DrawRectangleLinesEx(rect, 1, rl.NewColor(145, 165, 195, 255))
 	fontSize := int32(20)
+	for fontSize > 12 && rl.MeasureText(label, fontSize) > int32(rect.Width)-12 {
+		fontSize--
+	}
 	textWidth := rl.MeasureText(label, fontSize)
 	rl.DrawText(label, int32(rect.X)+(int32(rect.Width)-textWidth)/2, int32(rect.Y)+(int32(rect.Height)-fontSize)/2, fontSize, rl.RayWhite)
 	return hovered && rl.IsMouseButtonPressed(rl.MouseButtonLeft)
@@ -342,6 +460,22 @@ func menuUpdateAndDraw() {
 	}
 	menuDrawStatus()
 	menuDrawScreensaverFooter()
+	controlDown := rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)
+	if rl.IsKeyPressed(rl.KeyF) && !controlDown && !traceVisible && !appSettings.screenSaver && appSettings.previewParent == 0 {
+		grToggleFullscreen()
+		mode := "Fullscreen"
+		if appSettings.windowed {
+			mode = "Windowed"
+		}
+		menuShowStatus("Window mode: " + mode)
+	}
+	if rl.IsKeyPressed(rl.KeyF10) {
+		dataManagerSetVisible(!dataManagerVisible)
+	}
+	if dataManagerVisible {
+		dataManagerUpdateAndDraw()
+		return
+	}
 	if rl.IsKeyPressed(rl.KeyF2) {
 		cycleCRTFilter()
 		menuShowStatus("CRT filter: " + crtFilterMode.label())
@@ -372,6 +506,9 @@ func menuUpdateAndDraw() {
 	}
 	if rl.IsKeyPressed(rl.KeyN) {
 		menuRunNextTTM()
+	}
+	if rl.IsKeyPressed(rl.KeyD) && !traceVisible {
+		menuSetDayPreview()
 	}
 	if rl.IsKeyPressed(rl.KeyT) {
 		menuRunNextScene()
@@ -422,8 +559,8 @@ func menuUpdateAndDraw() {
 	buildLabel := appVersionLabel()
 	buildWidth := rl.MeasureText(buildLabel, 15)
 	rl.DrawText(buildLabel, int32(panelX+panelW-24)-buildWidth, int32(panelY+26), 15, rl.Gray)
-	rl.DrawText("F1/Esc: hide  F2: CRT  F3: scene order  F4: scaling  F5: log", int32(panelX+24), int32(panelY+58), 16, rl.LightGray)
-	rl.DrawText("Up/Down: choose  Enter: run  N: next TTM  T: scene  H: holiday  F7: sharp  F8: stats  F9: test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
+	rl.DrawText("F1/Esc: hide  F: fullscreen  F2: CRT  F3: order  F4: scaling  F5: log  F10: data", int32(panelX+24), int32(panelY+58), 14, rl.LightGray)
+	rl.DrawText("Up/Down: choose  Enter: run  D: day  N: next TTM  T: scene  H: holiday  F7: sharp  F8: stats  F9: test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
 	if appSettings.screenSaver {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}
@@ -450,10 +587,11 @@ func menuUpdateAndDraw() {
 
 	toggleY := panelY + panelH - 198
 	toggleGap := float32(12)
-	toggleW := (panelW - 48 - toggleGap*2) / 3
+	toggleW := (panelW - 48 - toggleGap*3) / 4
 	filterButton := rl.NewRectangle(panelX+24, toggleY, toggleW, 44)
 	orderButton := rl.NewRectangle(filterButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
 	scalingButton := rl.NewRectangle(orderButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
+	dayNightButton := rl.NewRectangle(scalingButton.X+toggleW+toggleGap, toggleY, toggleW, 44)
 	if menuButton(filterButton, "CRT: "+crtFilterMode.label()) {
 		cycleCRTFilter()
 		menuShowStatus("CRT filter: " + crtFilterMode.label())
@@ -466,6 +604,9 @@ func menuUpdateAndDraw() {
 		cycleImageScalingMode()
 		menuShowStatus("Image scaling: " + imageScalingMode.label())
 	}
+	if menuButton(dayNightButton, "Sky: "+islandDayNightLabel()) {
+		menuCycleDayNightPreview()
+	}
 
 	buttonY := panelY + panelH - 134
 	buttonGap := float32(12)
@@ -475,10 +616,11 @@ func menuUpdateAndDraw() {
 	run := rl.NewRectangle(next.X+buttonW+buttonGap, buttonY, buttonW, 48)
 
 	shortcutY := panelY + panelH - 70
-	shortcutW := (panelW - 48 - buttonGap*2) / 3
+	shortcutW := (panelW - 48 - buttonGap*3) / 4
 	nextTTM := rl.NewRectangle(panelX+24, shortcutY, shortcutW, 48)
 	nextScene := rl.NewRectangle(nextTTM.X+shortcutW+buttonGap, shortcutY, shortcutW, 48)
-	traceButton := rl.NewRectangle(nextScene.X+shortcutW+buttonGap, shortcutY, shortcutW, 48)
+	dataButton := rl.NewRectangle(nextScene.X+shortcutW+buttonGap, shortcutY, shortcutW, 48)
+	traceButton := rl.NewRectangle(dataButton.X+shortcutW+buttonGap, shortcutY, shortcutW, 48)
 
 	if menuButton(previous, "Prev") {
 		menuMoveSelection(-1)
@@ -495,8 +637,80 @@ func menuUpdateAndDraw() {
 	if menuButton(nextScene, "Next scene (T)") {
 		menuRunNextScene()
 	}
+	if menuButton(dataButton, "Data files (F10)") {
+		dataManagerSetVisible(true)
+	}
 	if menuButton(traceButton, "Runtime log (F5)") {
 		traceSetVisible(true)
+	}
+}
+
+func dataManagerUpdateAndDraw() {
+	if rl.IsKeyPressed(rl.KeyEscape) {
+		dataManagerSetVisible(false)
+		return
+	}
+	if rl.IsKeyPressed(rl.KeyF1) {
+		dataManagerSetVisible(false)
+		menuSetVisible(true)
+		return
+	}
+	if rl.IsKeyPressed(rl.KeyEnter) || rl.IsKeyPressed(rl.KeyB) {
+		dataManagerChooseFolder()
+	}
+	if rl.IsKeyPressed(rl.KeyR) {
+		dataManagerRefresh()
+	}
+	if rl.IsKeyPressed(rl.KeyO) {
+		dataManagerOpenFolder()
+	}
+
+	windowW := float32(rl.GetScreenWidth())
+	windowH := float32(rl.GetScreenHeight())
+	rl.DrawRectangle(0, 0, int32(windowW), int32(windowH), rl.Fade(rl.Black, 0.72))
+	panelW := min(float32(740), windowW-40)
+	panelH := min(float32(360), windowH-40)
+	panelX := (windowW - panelW) / 2
+	panelY := (windowH - panelH) / 2
+	panel := rl.NewRectangle(panelX, panelY, panelW, panelH)
+	if rl.IsMouseButtonPressed(rl.MouseButtonLeft) && !rl.CheckCollisionPointRec(rl.GetMousePosition(), panel) {
+		dataManagerSetVisible(false)
+		return
+	}
+	rl.DrawRectangleRec(panel, rl.NewColor(22, 27, 36, 252))
+	rl.DrawRectangleLinesEx(panel, 2, rl.NewColor(112, 170, 225, 255))
+	rl.DrawText("Data files", int32(panelX+26), int32(panelY+22), 30, rl.RayWhite)
+	rl.DrawText("F10/Esc close   Enter/B browse   R recheck   O open folder   F1 settings", int32(panelX+26), int32(panelY+62), 16, rl.LightGray)
+
+	card := rl.NewRectangle(panelX+26, panelY+96, panelW-52, 142)
+	rl.DrawRectangleRec(card, rl.NewColor(34, 41, 54, 255))
+	rl.DrawRectangleLinesEx(card, 1, rl.NewColor(92, 112, 140, 255))
+	rl.DrawText("Current folder", int32(card.X+18), int32(card.Y+16), 17, rl.LightGray)
+	pathText := compactMiddle(appSettings.dataDir, 78)
+	rl.DrawText(pathText, int32(card.X+18), int32(card.Y+44), 19, rl.RayWhite)
+	statusColor := rl.NewColor(235, 120, 110, 255)
+	statusLabel := "Needs attention"
+	if dataManagerValid {
+		statusColor = rl.NewColor(115, 220, 145, 255)
+		statusLabel = "Ready"
+	}
+	rl.DrawText(statusLabel, int32(card.X+18), int32(card.Y+80), 20, statusColor)
+	rl.DrawText(compactMiddle(dataManagerMessage, 88), int32(card.X+18), int32(card.Y+108), 15, rl.LightGray)
+
+	buttonGap := float32(14)
+	buttonY := panelY + panelH - 82
+	buttonW := (panelW - 52 - buttonGap*2) / 3
+	browse := rl.NewRectangle(panelX+26, buttonY, buttonW, 50)
+	recheck := rl.NewRectangle(browse.X+buttonW+buttonGap, buttonY, buttonW, 50)
+	open := rl.NewRectangle(recheck.X+buttonW+buttonGap, buttonY, buttonW, 50)
+	if menuButton(browse, "Browse... (Enter/B)") {
+		dataManagerChooseFolder()
+	}
+	if menuButton(recheck, "Recheck (R)") {
+		dataManagerRefresh()
+	}
+	if menuButton(open, "Open folder (O)") {
+		dataManagerOpenFolder()
 	}
 }
 

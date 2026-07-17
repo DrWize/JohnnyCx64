@@ -213,8 +213,65 @@ func loadPersistentSettings(args []string) {
 		appSettings.dataDir = cfg.DataDirectory
 	}
 	if appSettings.dataDir == "" {
-		appSettings.dataDir = "assets"
+		appSettings.dataDir = defaultDataDirectory()
 	}
+}
+
+func defaultDataDirectory() string {
+	executablePath, executableErr := os.Executable()
+	workingDirectory, workingErr := os.Getwd()
+	if executableErr != nil {
+		executablePath = ""
+	}
+	if workingErr != nil {
+		workingDirectory = ""
+	}
+
+	return chooseDefaultDataDirectory(executablePath, workingDirectory, func(directory string) bool {
+		return validateDataDirectory(directory) == nil
+	})
+}
+
+func chooseDefaultDataDirectory(executablePath, workingDirectory string, valid func(string) bool) string {
+	const defaultFolderName = "scrantic"
+	candidates := make([]string, 0, 6)
+	addCandidate := func(directory string) {
+		if directory == "" {
+			return
+		}
+		directory = filepath.Clean(directory)
+		for _, candidate := range candidates {
+			if strings.EqualFold(candidate, directory) {
+				return
+			}
+		}
+		candidates = append(candidates, directory)
+	}
+
+	if executablePath != "" {
+		executableDirectory := filepath.Dir(executablePath)
+		addCandidate(filepath.Join(executableDirectory, defaultFolderName))
+		addCandidate(filepath.Join(executableDirectory, "..", defaultFolderName))
+		// Development builds live in JohnnyCx86\build while the locally supplied
+		// data directory lives beside JohnnyCx86.
+		addCandidate(filepath.Join(executableDirectory, "..", "..", defaultFolderName))
+	}
+	if workingDirectory != "" {
+		addCandidate(filepath.Join(workingDirectory, defaultFolderName))
+		addCandidate(filepath.Join(workingDirectory, "..", defaultFolderName))
+	}
+
+	for _, candidate := range candidates {
+		if valid(candidate) {
+			return candidate
+		}
+	}
+	if len(candidates) != 0 {
+		// Keep startup errors and the folder picker pointed at the portable
+		// convention even when the user has not copied the archives yet.
+		return candidates[0]
+	}
+	return defaultFolderName
 }
 
 func mergePersistentAppOptions(options appOptions, cfg TConfig, args []string) appOptions {
@@ -253,6 +310,16 @@ func persistDisplayPlaybackSettings() {
 		cfg.Monitor = appSettings.monitor
 	}
 	cfg.DataDirectory = appSettings.dataDir
+	cfgFileWrite(&cfg)
+}
+
+func persistDataDirectory(directory string) {
+	if appSettings.noSaveSettings {
+		return
+	}
+	var cfg TConfig
+	cfgFileRead(&cfg)
+	cfg.DataDirectory = directory
 	cfgFileWrite(&cfg)
 }
 

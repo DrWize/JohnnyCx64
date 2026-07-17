@@ -202,8 +202,10 @@ func performanceFooterMetrics() string {
 
 func performanceDraw() {
 	performanceBenchmarkUpdate()
-	showResults := len(performanceBenchmarkResults) != 0 && rl.GetTime() < performanceBenchmarkResultsUntil
-	if menuVisible || traceVisible || (!performancePinned && !performanceBenchmarkActive && !showResults && rl.GetTime() >= performanceVisibleUntil) {
+	now := rl.GetTime()
+	showResults := len(performanceBenchmarkResults) != 0 && now < performanceBenchmarkResultsUntil
+	opacity := informationalUIOpacity(now)
+	if opacity <= 0 || menuVisible || traceVisible || (!performancePinned && !performanceBenchmarkActive && !showResults && now >= performanceVisibleUntil) {
 		return
 	}
 
@@ -246,13 +248,13 @@ func performanceDraw() {
 	boxHeight := int32(18 + len(lines)*24)
 	x := int32(14)
 	y := int32(14)
-	rl.DrawRectangle(x, y, boxWidth, boxHeight, rl.NewColor(12, 16, 24, 225))
-	rl.DrawRectangleLines(x, y, boxWidth, boxHeight, rl.NewColor(145, 165, 195, 255))
+	rl.DrawRectangle(x, y, boxWidth, boxHeight, rl.Fade(rl.NewColor(12, 16, 24, 225), opacity))
+	rl.DrawRectangleLines(x, y, boxWidth, boxHeight, rl.Fade(rl.NewColor(145, 165, 195, 255), opacity))
 	for index, line := range lines {
 		color := rl.RayWhite
 		if index == 0 || (showResults && index >= 3) {
 			color = rl.Gold
 		}
-		rl.DrawText(line, x+14, y+9+int32(index)*24, fontSize, color)
+		rl.DrawText(line, x+14, y+9+int32(index)*24, fontSize, rl.Fade(color, opacity))
 	}
 }

@@ -21,6 +21,8 @@ var (
 
 	// -1 follows the real calendar; 1..4 force a holiday overlay for preview.
 	islandHolidayOverride = -1
+	// -1 follows the real clock; 0 and 1 force day or night for preview.
+	islandDayNightOverride = -1
 )
 
 type TCloudState struct {
@@ -109,18 +111,9 @@ func islandInit(ttmThread *TTtmThread) {
 
 	for i := range numClouds {
 		cloudNo := rand.Int() % 3
-		switch cloudNo {
-		case 0:
-			cloudX = uint16(rand.Int() % (640 - 129))
-			cloudY = uint16(rand.Int()%(100-36) + 25)
-
-		case 1:
-			cloudX = uint16(rand.Int() % (640 - 192))
-			cloudY = uint16(rand.Int()%(100-57) + 25)
-		case 2:
-			cloudX = uint16(rand.Int() % (640 - 264))
-			cloudY = uint16(rand.Int()%(100-76) + 25)
-		}
+		maxX, maxY := cloudPlacementLimits(cloudNo)
+		cloudX = uint16(rand.Int() % maxX)
+		cloudY = uint16(rand.Int() % maxY)
 		islandState.clouds.windSpeed[i] = int32(rand.Int()%2 + 1)
 		islandState.clouds.cloudNo[i] = int32(cloudNo)
 		islandState.clouds.xPos[i] = int32(cloudX)
@@ -150,6 +143,17 @@ func islandInit(ttmThread *TTtmThread) {
 	const val = 8
 	ttmThread.delay = val
 	ttmThread.timer = val
+}
+
+func cloudPlacementLimits(cloudNo int) (maxX, maxY int) {
+	switch cloudNo {
+	case 0:
+		return 640 - 129, 135 - 36
+	case 1:
+		return 640 - 192, 135 - 57
+	default:
+		return 640 - 264, 135 - 76
+	}
 }
 
 func islandAnimate(ttmThread *TTtmThread) {
@@ -273,37 +277,61 @@ func islandHolidayLabel() string {
 	return "Off"
 }
 
-func islandAnimateClouds(ttmThread *TTtmThread) {
-	// r.c. big observation, this cloud logic keeps excessively loading the BACKGROUND.BMP
-	// it's super taxing, and this came from the github.com/xesf/jc_reborn branch
-	if true {
-		// CLOUDS DISABLED FOR NOW - r.c.!!!
-		return
+func islandCycleDayNight() string {
+	switch islandDayNightOverride {
+	case -1:
+		return islandSetDayNightOverride(0)
+	case 0:
+		return islandSetDayNightOverride(1)
+	default:
+		return islandSetDayNightOverride(-1)
 	}
 
+}
+
+func islandSetDayNightOverride(dayNightOverride int) string {
+	islandDayNightOverride = dayNightOverride
+	islandState.night = storyNightForHour(getHour(), islandDayNightOverride)
+	return islandDayNightLabel()
+}
+
+func islandDayNightLabel() string {
+	switch islandDayNightOverride {
+	case 0:
+		return "Day"
+	case 1:
+		return "Night"
+	default:
+		return "Automatic (clock)"
+	}
+}
+
+func cloudNextX(x, speed, direction int32) int32 {
+	if x > 640+264 {
+		return -264
+	}
+	if x < -264 {
+		return 640 + 264
+	}
+	if direction > 0 {
+		return x - speed
+	}
+	return x + speed
+}
+
+func islandAnimateClouds(ttmThread *TTtmThread) {
 	ttmSlot := ttmThread.ttmSlot
 	grClearScreen(ttmThread.ttmLayer)
+	// Keep the scheduled thread alive even when this island happens to roll zero
+	// clouds; the ADS timer code expects this thread to retain a valid timer.
+	ttmThread.isRunning = 3
 	if islandState.clouds.numClouds > 0 {
-		ttmThread.isRunning = 3
-		grLoadBmp(ttmSlot, 0, "BACKGRND.BMP")
-
 		// animate clouds x position
 		for i := int32(0); i < islandState.clouds.numClouds; i++ {
 			cloudNo := islandState.clouds.cloudNo[i]
 			cloudX := islandState.clouds.xPos[i]
 			cloudY := islandState.clouds.yPos[i]
-
-			if cloudX > 640+264 {
-				cloudX = -264
-			} else if cloudX < -264 {
-				cloudX = 640 + 264
-			} else {
-				if islandState.clouds.windDirection > 0 {
-					cloudX -= islandState.clouds.windSpeed[i]
-				} else {
-					cloudX += islandState.clouds.windSpeed[i]
-				}
-			}
+			cloudX = cloudNextX(cloudX, islandState.clouds.windSpeed[i], islandState.clouds.windDirection)
 
 			//fmt.Printf("Clouds Pos: %d, %d\n", cloudX, cloudY)
 			if islandState.clouds.windDirection > 0 {
@@ -315,7 +343,5 @@ func islandAnimateClouds(ttmThread *TTtmThread) {
 			islandState.clouds.xPos[i] = cloudX
 			islandState.clouds.yPos[i] = cloudY
 		}
-	} else {
-		ttmThread.isRunning = 0
 	}
 }

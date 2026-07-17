@@ -9,6 +9,9 @@ resource_windows_*.syso
 /build/JohnnyCastaway-x64.exe
 /build/JohnnyCastaway-x86.scr
 /build/history/
+/build/screenshot*.png
+/build/scrantic/
+/scrantic/
 /assets/RESOURCE.MAP
 /assets/RESOURCE.001
 /resources/*.wav

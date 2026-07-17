@@ -20,13 +20,17 @@ const (
 var messageBoxW = windows.NewLazySystemDLL("user32.dll").NewProc("MessageBoxW")
 
 var (
-	setParentW      = windows.NewLazySystemDLL("user32.dll").NewProc("SetParent")
-	getParentW      = windows.NewLazySystemDLL("user32.dll").NewProc("GetParent")
-	getClientRectW  = windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect")
-	moveWindowW     = windows.NewLazySystemDLL("user32.dll").NewProc("MoveWindow")
-	isWindowW       = windows.NewLazySystemDLL("user32.dll").NewProc("IsWindow")
-	setWindowLongW  = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowLongW")
-	setWindowLongPW = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowLongPtrW")
+	setParentW       = windows.NewLazySystemDLL("user32.dll").NewProc("SetParent")
+	getParentW       = windows.NewLazySystemDLL("user32.dll").NewProc("GetParent")
+	getClientRectW   = windows.NewLazySystemDLL("user32.dll").NewProc("GetClientRect")
+	moveWindowW      = windows.NewLazySystemDLL("user32.dll").NewProc("MoveWindow")
+	isWindowW        = windows.NewLazySystemDLL("user32.dll").NewProc("IsWindow")
+	setWindowLongW   = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowLongW")
+	setWindowLongPW  = windows.NewLazySystemDLL("user32.dll").NewProc("SetWindowLongPtrW")
+	browseForFolderW = windows.NewLazySystemDLL("shell32.dll").NewProc("SHBrowseForFolderW")
+	getPathFromIDW   = windows.NewLazySystemDLL("shell32.dll").NewProc("SHGetPathFromIDListW")
+	shellExecuteW    = windows.NewLazySystemDLL("shell32.dll").NewProc("ShellExecuteW")
+	coTaskMemFree    = windows.NewLazySystemDLL("ole32.dll").NewProc("CoTaskMemFree")
 )
 
 const (
@@ -34,6 +38,64 @@ const (
 	wsChild   = 0x40000000
 	wsVisible = 0x10000000
 )
+
+const (
+	bifReturnOnlyFSDirs = 0x00000001
+	bifNewDialogStyle   = 0x00000040
+	swShowNormal        = 1
+)
+
+type browseInfo struct {
+	owner       uintptr
+	root        uintptr
+	displayName *uint16
+	title       *uint16
+	flags       uint32
+	callback    uintptr
+	callbackArg uintptr
+	image       int32
+}
+
+func chooseDataDirectory(owner uintptr) (string, bool, error) {
+	title, err := windows.UTF16PtrFromString("Select the folder containing RESOURCE.MAP and RESOURCE.001")
+	if err != nil {
+		return "", false, err
+	}
+	displayName := make([]uint16, windows.MAX_PATH)
+	info := browseInfo{
+		owner:       owner,
+		displayName: &displayName[0],
+		title:       title,
+		flags:       bifReturnOnlyFSDirs | bifNewDialogStyle,
+	}
+	itemID, _, _ := browseForFolderW.Call(uintptr(unsafe.Pointer(&info)))
+	if itemID == 0 {
+		return "", false, nil
+	}
+	defer coTaskMemFree.Call(itemID)
+	path := make([]uint16, windows.MAX_PATH)
+	result, _, callErr := getPathFromIDW.Call(itemID, uintptr(unsafe.Pointer(&path[0])))
+	if result == 0 {
+		return "", false, fmt.Errorf("read selected folder: %v", callErr)
+	}
+	return windows.UTF16ToString(path), true, nil
+}
+
+func openDirectory(owner uintptr, directory string) error {
+	verb, err := windows.UTF16PtrFromString("open")
+	if err != nil {
+		return err
+	}
+	path, err := windows.UTF16PtrFromString(directory)
+	if err != nil {
+		return err
+	}
+	result, _, callErr := shellExecuteW.Call(owner, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(path)), 0, 0, swShowNormal)
+	if result <= 32 {
+		return fmt.Errorf("open folder: code %d: %v", result, callErr)
+	}
+	return nil
+}
 
 func normalizeWindowsScreenSaverArgs(args []string) ([]string, uintptr, bool, error) {
 	if len(args) == 0 || !strings.HasPrefix(args[0], "/") {

@@ -2,7 +2,8 @@ param(
     [int]$SceneAdvances = 60,
     [int]$StorySeconds = 25,
     [ValidateSet('', 'off', 'lightweight', 'fast', 'lottes')]
-    [string]$CrtMode = ''
+    [string]$CrtMode = '',
+    [string]$DataDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,8 +84,22 @@ function Read-NewLog([string]$Path, [long]$Offset) {
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $exe = Join-Path $PSScriptRoot 'JohnnyCastaway-x64.exe'
-$map = Join-Path $projectRoot 'assets\RESOURCE.MAP'
-$resources = Join-Path $projectRoot 'assets\RESOURCE.001'
+if (!$DataDirectory) {
+    $DataDirectory = @(
+        (Join-Path $PSScriptRoot 'scrantic'),
+        (Join-Path $projectRoot 'scrantic'),
+        (Join-Path $projectRoot '..\scrantic')
+    ) | Where-Object {
+        (Test-Path -LiteralPath (Join-Path $_ 'RESOURCE.MAP') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $_ 'RESOURCE.001') -PathType Leaf)
+    } | Select-Object -First 1
+}
+if (!$DataDirectory) {
+    throw 'No scrantic data folder was found; pass -DataDirectory explicitly'
+}
+$dataPath = (Resolve-Path -LiteralPath $DataDirectory).Path
+$map = Join-Path $dataPath 'RESOURCE.MAP'
+$resources = Join-Path $dataPath 'RESOURCE.001'
 $log = Join-Path $env:LOCALAPPDATA 'JohnnyCastaway\JohnnyCastaway.log'
 $ttms = Get-TtmNames $map $resources
 
@@ -101,7 +116,7 @@ if ($ttms.Count -ne 41) {
 }
 
 $logOffset = (Get-Item $log -ErrorAction SilentlyContinue).Length
-$ttmArguments = @('--windowed', '--mute', '--no-save-settings', '--ttm', $ttms[0])
+$ttmArguments = @('--windowed', '--mute', '--no-save-settings', '--data-dir', $dataPath, '--ttm', $ttms[0])
 if ($CrtMode) { $ttmArguments += @('--crt', $CrtMode) }
 $process = Start-Process -FilePath $exe -ArgumentList $ttmArguments -WindowStyle Hidden -PassThru
 $completed = 0
@@ -145,7 +160,7 @@ $wrappedTtms = @($advanceMatches | Group-Object { $_.Groups[1].Value } | Where-O
 }).Count
 
 $storyOffset = (Get-Item $log).Length
-$storyArguments = @('--windowed', '--mute', '--no-save-settings')
+$storyArguments = @('--windowed', '--mute', '--no-save-settings', '--data-dir', $dataPath)
 if ($CrtMode) { $storyArguments += @('--crt', $CrtMode) }
 $story = Start-Process -FilePath $exe -ArgumentList $storyArguments -WindowStyle Hidden -PassThru
 Start-Sleep -Seconds $StorySeconds

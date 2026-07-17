@@ -1,6 +1,6 @@
 # JohnnyCx86 Roadmap
 
-Updated: 2026-07-16
+Updated: 2026-07-17
 
 ## Objective
 
@@ -75,6 +75,14 @@ Target: after all Phase 1 gates pass.
 - [ ] Promote the candidate to the first stable release if the clean-machine
   smoke test passes.
 
+Local follow-up on 2026-07-17: the published RC1 asset hashes matched the
+release metadata. The x64 application and all x86 `/c`, `/s`, `/p`, and preview
+host-close paths passed with an isolated empty LocalAppData profile and the
+user-supplied data directory. This proves independence from existing Johnny
+settings, but it does not replace the required separate Windows account or
+machine test; the current session is not elevated and Windows Sandbox could not
+be enabled or inspected without elevation.
+
 Exit criteria:
 
 - The public repository has a reproducible, source-only stable release.
@@ -100,6 +108,12 @@ Target: directly after the stable release.
 - [x] Organize the portfolio so completed, active, experimental, and archived
   projects are easy to distinguish without implying that JohnnyCx86 is the
   whole purpose of `DrWize/Home`.
+
+Progress on 2026-07-17: branch `agent/all-project-portfolio` already contains
+the x64/x86 summary, CI badges, RC1 link, and source/data-policy note. Its
+screenshot remains intentionally omitted rather than republishing original
+Sierra/Dynamix artwork. Publication remains sequenced after the stable-release
+gate.
 
 Exit criteria:
 
@@ -158,8 +172,19 @@ Exit criteria:
 
 - [ ] Compare representative scenes, long-run order, timing, day/night changes,
   and holiday behavior with the documented observation references.
-- [ ] Review known implementations for behavioral regressions and test gaps
+- [x] Review known implementations for behavioral regressions and test gaps
   without copying incompatible code or assets.
+
+Progress through 2026-07-17: the implementation audit found and addressed
+Go-renderer regressions: `SET_CLIP_ZONE` was parsed but not enforced, and cloud Y
+placement did not match the `rand() % (135-height)` reference formula. The audit
+also confirmed the 10-slot limit and same-spot walk behavior, and documented
+remaining observational checks in `docs/FIDELITY_AUDIT.md`. Follow-up work added
+an explicit missing-intro regression, restored cloud movement with one-time
+sprite loading, fixed stale automatic night state, and added a Settings-panel
+day-night preview. The xesf browser viewer remains useful for rendering
+comparisons but incomplete as a story reference; sampled sections of the
+11-hour recording confirm cloud drift but provide no verified night scene.
 - [x] Decide whether omitted `FLAME.BMP` and `FLURRY.BMP` effects should remain a
   documented limitation or receive clearly identified original replacement art.
 - [x] Do not create replacement art for the stable release. If that decision is
@@ -189,10 +214,10 @@ Exit criteria if reopened:
 
 ## Recommended immediate sequence
 
-1. Preserve the 12-file delta.
-2. Rebase the work conceptually onto `johnnycx86/main` using a clean branch.
-3. Run local x64/x86 tests and screensaver QA.
-4. Push the focused branch and let both CI workflows pass.
-5. Merge and publish the first release candidate.
-6. Update the all-project `DrWize/Home` portfolio only after the JohnnyCx86
-   release URL and artifacts are stable, linking to its dedicated repository.
+1. Create a focused branch and commit for the current fidelity, configuration,
+   interface, test, and documentation delta.
+2. Push the branch and require both Windows CI workflows to pass.
+3. Merge and publish `v2026.1.0-rc.2` rather than promoting the older RC1 bits.
+4. Test RC2 on a genuinely separate Windows account or machine.
+5. Promote the verified candidate to stable, then update the all-project
+   `DrWize/Home` portfolio with the stable release URL and status.

@@ -41,26 +41,39 @@ const (
 )
 
 func loadResourceArchives(directory string) error {
+	mapData, archiveData, err := readVerifiedResourceArchives(directory)
+	if err != nil {
+		return err
+	}
+	resourceMapData = mapData
+	resourceArchiveData = archiveData
+	return nil
+}
+
+func validateDataDirectory(directory string) error {
+	_, _, err := readVerifiedResourceArchives(directory)
+	return err
+}
+
+func readVerifiedResourceArchives(directory string) ([]byte, []byte, error) {
 	if directory == "" {
 		directory = "assets"
 	}
 	mapData, err := os.ReadFile(filepath.Join(directory, "RESOURCE.MAP"))
 	if err != nil {
-		return fmt.Errorf("read RESOURCE.MAP from %s: %w", directory, err)
+		return nil, nil, fmt.Errorf("read RESOURCE.MAP from %s: %w", directory, err)
 	}
 	archiveData, err := os.ReadFile(filepath.Join(directory, "RESOURCE.001"))
 	if err != nil {
-		return fmt.Errorf("read RESOURCE.001 from %s: %w", directory, err)
+		return nil, nil, fmt.Errorf("read RESOURCE.001 from %s: %w", directory, err)
 	}
 	if got := fmt.Sprintf("%x", md5.Sum(mapData)); got != canonicalMapMD5 {
-		return fmt.Errorf("RESOURCE.MAP MD5 is %s; expected %s", got, canonicalMapMD5)
+		return nil, nil, fmt.Errorf("RESOURCE.MAP MD5 is %s; expected %s", got, canonicalMapMD5)
 	}
 	if got := fmt.Sprintf("%x", md5.Sum(archiveData)); got != canonicalArchiveMD5 {
-		return fmt.Errorf("RESOURCE.001 MD5 is %s; expected %s", got, canonicalArchiveMD5)
+		return nil, nil, fmt.Errorf("RESOURCE.001 MD5 is %s; expected %s", got, canonicalArchiveMD5)
 	}
-	resourceMapData = mapData
-	resourceArchiveData = archiveData
-	return nil
+	return mapData, archiveData, nil
 }
 
 type TMapFile struct {

@@ -69,4 +69,5 @@ echo   %HISTORY_OUTPUT% - timestamped test build
 echo.
 echo Supported Windows screensaver modes: /s, /p HWND, and /c.
 echo Source-only build: Sierra data is not embedded.
+echo Uses a nearby verified scrantic folder by default; --data-dir overrides it.
 echo.

@@ -68,5 +68,5 @@ echo   %OUTPUT% - latest 64-bit Windows desktop app
 echo   %HISTORY_OUTPUT% - timestamped test build
 echo.
 echo Source-only build: Sierra data is not embedded.
-echo Use --data-dir to select RESOURCE.MAP, RESOURCE.001, and optional sounds.
+echo Uses a nearby verified scrantic folder by default; --data-dir overrides it.
 echo.

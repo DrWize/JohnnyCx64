@@ -50,12 +50,16 @@ The `.scr` implements the Windows screensaver command contract:
 
 The standard long-form options can follow a screensaver mode for testing, such
 as `/s --mute --data-dir C:\Johnny`. Installing or copying the `.scr` does not
-install the original data; the persisted data directory must already point to
-the user's verified `RESOURCE.MAP` and `RESOURCE.001` files.
+install the original data. Unless `--data-dir` or a saved Data Files selection
+states otherwise, the EXE and SCR look for a verified folder named `scrantic`
+beside the binary, beside its containing project directory, or beside the
+current working directory. This makes development builds in `JohnnyCx86\build`
+find the existing sibling `Johnny\scrantic` directory automatically.
 
-Files required for the Windows builds are kept in the repository root plus:
+Local development uses the following ignored directories when applicable:
 
-* `assets/` - optional ignored local folder for user-supplied archives and sounds
+* `scrantic/` - default local folder for user-supplied archives and sounds;
+  it is never part of the public source tree
 * `build/` - build scripts, Windows manifest/version/icon resources, and output
 
 Windows command-line options:
@@ -73,11 +77,22 @@ Windows command-line options:
 * `--menu` - open the otherwise hidden menu immediately (useful for testing)
 * `--crt MODE` - override CRT mode with `off`, `lightweight`, `fast`, or `lottes`
 * `--data-dir PATH` - folder containing the original `RESOURCE.MAP`,
-  `RESOURCE.001`, and any optional `sound*.wav` files; the selected path persists
+  `RESOURCE.001`, and any optional `sound*.wav` files; this overrides the
+  `scrantic` default and the selected path persists
 
 Double-click `build\JohnnyCastaway-x64.exe` to test the finished application.
 Press `F1` for the settings and complete key guide. Press `Esc` twice within
 1.5 seconds to quit; the first press also closes an open menu or runtime log.
+Press `F` in the normal application to toggle between the centered resizable
+window and borderless fullscreen; the selected mode persists. `Ctrl+F` remains
+the Runtime Log search shortcut. Screensaver and preview modes do not toggle.
+Press `F10` to open the Data Files manager. Inside it, use `Enter` or `B` to
+browse, `R` to recheck the current folder, `O` to open it in Explorer, `F1` to
+return to Settings, and `Esc` or `F10` to close. The manager verifies both
+canonical archive hashes before saving a selection, so an invalid folder never
+replaces the last working setting.
+Press `D` to force the Full Story background to Day. `N` remains assigned to
+Next TTM and is not used for Night.
 The screensaver footer shows the available controls for ten seconds whenever a
 recognized control is used, so the README does not duplicate the full shortcut list.
 The menu can select Full Story or any embedded TTM, and can advance to the next
@@ -98,6 +113,14 @@ The settings include a holiday preview that cycles through `Halloween`,
 changing the system clock. The preview applies
 immediately and remains active across Full Story scene changes until the cycle
 returns to automatic date selection.
+
+Use the Settings panel's `Sky` button to cycle the Full Story background through
+`Day`, `Night`, and `Automatic (clock)` without changing the Windows clock. The
+content session is restarted so the new background appears immediately, while the introductory
+title screen is skipped for preview changes. Automatic mode uses night before
+06:00 and from 18:00 onward. Clouds move independently across either background
+and wrap after leaving the native 640-pixel canvas. The same control is available
+as the `Sky` button in Settings.
 
 The menu also contains live CRT, scene-order, image-scaling, Fast CRT
 sharpness, performance-HUD, and shader-benchmark controls.
@@ -171,6 +194,12 @@ seconds, fades during the next two seconds, and then disappears without pausing
 the animation. Pressing any recognized screensaver control reveals the footer
 for another ten seconds.
 
+Nonessential performance and shortcut information follows the same inactivity
+rule in every mode: it remains fully visible for eight seconds, fades during the
+next two, and wakes immediately on mouse movement, a mouse button, or keyboard
+input. Settings, Data Files, Runtime Log, and error/status messages remain
+visible and interactive independently of that idle timer.
+
 CRT-Royale remains a future experimental option rather than a selectable mode.
 The maintained [reference preset](https://github.com/libretro/slang-shaders/blob/master/crt/crt-royale.slangp)
 uses 12 rendering passes and six mask LUTs; even
@@ -182,7 +211,9 @@ scanline/vignette overlay remains the inexpensive, broadly compatible default.
 Run `build\test.bat` from a Command Prompt to execute the automated regression
 suite with the same Go and MSYS2 CGO toolchain used by the x64 build. Run
 `powershell -ExecutionPolicy Bypass -File build\stability_sweep.ps1` for the
-longer interactive sweep across every embedded TTM and Full Story.
+longer interactive sweep across every embedded TTM and Full Story. Both Windows
+QA scripts discover the same nearby `scrantic` convention as the binaries; use
+their `-DataDirectory` parameter to test another verified folder explicitly.
 
 The `Windows x64` GitHub Actions workflow performs the same archive
 verification and regression suite on a Windows 2025 runner, installs the
@@ -209,8 +240,9 @@ and generated executables. Local data paths are ignored by Git.
 The screensaver requires the original `RESOURCE.MAP`
 and `RESOURCE.001` from the 1992 Sierra/Dynamix release; sound will be optional.
 Users copy those files into a folder of their choosing and select it with
-`--data-dir`; a graphical configure screen remains planned. The application
-verifies supported files by hash and does not provide, download, or link to copies.
+`--data-dir`, the first-run folder prompt, or the `F10` Data Files manager. The
+application verifies supported files by hash and does not provide, download, or
+link to copies.
 
 For reference, the canonical archive hashes are:
 

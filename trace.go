@@ -158,7 +158,7 @@ func traceSetVisible(visible bool) {
 	if visible {
 		traceScroll = 0
 		rl.ShowCursor()
-	} else if !menuVisible && !appSettings.windowed {
+	} else if !menuVisible && !dataManagerVisible && !appSettings.windowed {
 		rl.HideCursor()
 	}
 }
@@ -527,6 +527,9 @@ func traceHandleInput() bool {
 }
 
 func traceUpdateAndDraw() {
+	if dataManagerVisible {
+		return
+	}
 	if rl.IsKeyPressed(rl.KeyF5) {
 		traceToggle()
 	}

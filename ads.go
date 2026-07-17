@@ -803,6 +803,12 @@ func adsInitIsland() {
 		ttmCloudsThread.ttmLayer = nil
 	}
 	ttmCloudsThread.ttmLayer = grNewLayer()
+	// Decode the sprite sheet once per island. The previous dormant animator
+	// loaded it on every animation tick, which made enabling cloud motion far
+	// more expensive than necessary.
+	if islandState.clouds.numClouds > 0 {
+		grLoadBmp(&ttmCloudsSlot, 0, "BACKGRND.BMP")
+	}
 
 	islandAnimateClouds(&ttmCloudsThread)
 }
