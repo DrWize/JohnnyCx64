@@ -8,6 +8,7 @@ inspect
 resource_windows_*.syso
 /build/JohnnyCastaway-x64.exe
 /build/JohnnyCastaway-x86.scr
+/build/JohnnyCastaway.ini
 /build/history/
 /build/screenshot*.png
 /build/scrantic/

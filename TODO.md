@@ -73,6 +73,10 @@ Updated: 2026-07-17
 
 ## Completed in the current change set
 
+- [x] Moved persistent preferences to a documented `JohnnyCastaway.ini` beside
+  the running EXE or SCR, with automatic migration from the previous
+  LocalAppData/home formats and a LocalAppData fallback for protected install
+  directories. Runtime QA confirmed creation and reuse beside the build.
 - [x] Added `Space` playback pause/resume outside overlays. Pause holds the
   engine timer boundary so scenes, walking, waves, clouds, and sounds resume
   without consuming idle time; a persistent pause badge and responsive dock

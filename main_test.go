@@ -810,6 +810,18 @@ func TestPersistentSettingsConfigRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("config round trip = %#v, want %#v", got, want)
 	}
+	formatted := cfgFormat(&want)
+	if !strings.Contains(formatted, "[Settings]") || !strings.HasPrefix(formatted, "; Johnny Castaway") {
+		t.Fatalf("settings are not formatted as a documented INI file:\n%s", formatted)
+	}
+}
+
+func TestPortableConfigPathIsBesideExecutable(t *testing.T) {
+	executable := filepath.Join("E:\\Games", "Johnny Castaway", "JohnnyCastaway.exe")
+	want := filepath.Join("E:\\Games", "Johnny Castaway", "JohnnyCastaway.ini")
+	if got := configPathBesideExecutable(executable); got != want {
+		t.Fatalf("portable config path = %q, want %q", got, want)
+	}
 }
 
 func TestMergePersistentAppOptions(t *testing.T) {

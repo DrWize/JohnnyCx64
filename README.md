@@ -103,6 +103,15 @@ Press `Space` outside an open Settings, Data Files, or Runtime Log panel to
 pause the entire scene, including animation timers and active sound effects.
 Press `Space` again to resume without consuming the time spent paused. Runtime
 Log keeps its existing Space shortcut for pausing trace capture.
+
+Display, playback, audio, monitor, and data-folder choices persist in the
+human-readable `JohnnyCastaway.ini` beside the running `.exe` or `.scr`. The
+file is created automatically on first successful launch and can be edited
+while Johnny Castaway is closed. Existing LocalAppData `config.txt` and legacy
+home-folder settings migrate automatically. If the executable is installed in
+a protected directory such as `System32`, settings fall back to
+`LocalAppData\JohnnyCastaway\JohnnyCastaway.ini` so screensaver preferences can
+still be saved without administrator rights.
 The sleek shortcut dock at the bottom shows every primary playback and display
 control in both desktop and screensaver modes, including the current CRT,
 scene-order, scaling, and sharpness selections. It wraps cleanly on narrower
