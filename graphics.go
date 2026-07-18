@@ -24,17 +24,79 @@ type imageScaling string
 
 type crtFilter string
 
+type crtCapabilities struct {
+	fast   bool
+	hdr    bool
+	lottes bool
+}
+
+type layerClip struct {
+	x      int32
+	y      int32
+	width  int32
+	height int32
+}
+
 const (
 	crtOff         crtFilter = "off"
 	crtLightweight crtFilter = "lightweight"
 	crtFast        crtFilter = "fast"
+	crtHDR         crtFilter = "hdr"
 	crtLottes      crtFilter = "lottes"
 )
+
+var detectedCRTCapabilities = crtCapabilities{fast: true, hdr: true, lottes: true}
+
+func (capabilities crtCapabilities) supports(mode crtFilter) bool {
+	switch mode {
+	case crtFast:
+		return capabilities.fast
+	case crtHDR:
+		return capabilities.hdr
+	case crtLottes:
+		return capabilities.lottes
+	case crtOff, crtLightweight:
+		return true
+	default:
+		return false
+	}
+}
+
+func (capabilities crtCapabilities) modes() []crtFilter {
+	modes := []crtFilter{crtOff, crtLightweight}
+	if capabilities.fast {
+		modes = append(modes, crtFast)
+	}
+	if capabilities.hdr {
+		modes = append(modes, crtHDR)
+	}
+	if capabilities.lottes {
+		modes = append(modes, crtLottes)
+	}
+	return modes
+}
+
+func (capabilities crtCapabilities) fallback(mode crtFilter) crtFilter {
+	if capabilities.supports(mode) {
+		return mode
+	}
+	return crtLightweight
+}
+
+func (capabilities crtCapabilities) next(mode crtFilter) crtFilter {
+	modes := capabilities.modes()
+	for index, available := range modes {
+		if available == mode {
+			return modes[(index+1)%len(modes)]
+		}
+	}
+	return capabilities.fallback(mode)
+}
 
 func parseCRTFilter(value string, legacyEnabled bool) crtFilter {
 	mode := crtFilter(value)
 	switch mode {
-	case crtOff, crtLightweight, crtFast, crtLottes:
+	case crtOff, crtLightweight, crtFast, crtHDR, crtLottes:
 		return mode
 	}
 	if legacyEnabled {
@@ -49,6 +111,8 @@ func (mode crtFilter) label() string {
 		return "Lightweight"
 	case crtFast:
 		return "Fast"
+	case crtHDR:
+		return "HDR Pop"
 	case crtLottes:
 		return "Lottes"
 	default:
@@ -57,7 +121,7 @@ func (mode crtFilter) label() string {
 }
 
 func (mode crtFilter) usesNativeFrame() bool {
-	return mode == crtFast || mode == crtLottes
+	return mode == crtFast || mode == crtHDR || mode == crtLottes
 }
 
 const (
@@ -347,6 +411,62 @@ void main() {
     finalColor = vec4(color, 1.0) * fragColor;
 }`
 
+// HDR Pop is a restrained wide-screen enhancement pass for HDR-capable panels.
+// Raylib's current Windows swapchain remains SDR, so this shader produces an
+// HDR-style SDR signal for Windows and the display to tone-map rather than
+// claiming HDR10 output metadata. It preserves black, adds local clarity and
+// chroma separation, and gives bright colors a soft highlight shoulder.
+const hdrPopFragmentShader = `#version 330
+in vec2 fragTexCoord;
+in vec4 fragColor;
+uniform sampler2D texture0;
+uniform vec2 sourceSize;
+out vec4 finalColor;
+
+vec3 toLinear(vec3 color) {
+    return pow(max(color, vec3(0.0)), vec3(2.2));
+}
+
+vec3 toDisplay(vec3 color) {
+    return pow(clamp(color, vec3(0.0), vec3(1.0)), vec3(1.0 / 2.2));
+}
+
+vec3 sampleSource(vec2 uv) {
+    vec2 halfTexel = vec2(0.5) / sourceSize;
+    return toLinear(texture(texture0, clamp(uv, halfTexel, vec2(1.0) - halfTexel)).rgb);
+}
+
+void main() {
+    vec2 pixel = fragTexCoord * sourceSize;
+    vec2 uv = (floor(pixel) + vec2(0.5)) / sourceSize;
+    vec2 texel = vec2(1.0) / sourceSize;
+
+    vec3 center = sampleSource(uv);
+    vec3 north = sampleSource(uv - vec2(0.0, texel.y));
+    vec3 south = sampleSource(uv + vec2(0.0, texel.y));
+    vec3 west = sampleSource(uv - vec2(texel.x, 0.0));
+    vec3 east = sampleSource(uv + vec2(texel.x, 0.0));
+    vec3 neighborhood = (north + south + west + east) * 0.25;
+
+    // Preserve the pixel-art silhouette while improving clarity on very large
+    // panels. Limit the detail term so palette transitions never halo heavily.
+    vec3 detail = clamp(center - neighborhood, vec3(-0.18), vec3(0.18));
+    vec3 color = max(center + detail * 0.24, vec3(0.0));
+
+    // Expand color separation without shifting neutral grays or crushing black.
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(luminance), color, 1.20);
+
+    // A small, content-derived glow lifts bright palette entries. The shoulder
+    // keeps the SDR output bounded for predictable Windows HDR tone mapping.
+    vec3 highlight = max(neighborhood - vec3(0.52), vec3(0.0));
+    color += highlight * 0.13;
+    color = color * (vec3(1.0) + 0.16 * color) /
+            (vec3(1.0) + 0.16 * color * color);
+
+    finalColor = vec4(toDisplay(color), 1.0) * fragColor;
+}`
+
 const (
 	ttmBufferBackground uint16 = iota
 	ttmBufferStoredArea
@@ -376,7 +496,9 @@ var (
 	grScale2xShader   rl.Shader
 	grCRTFastShader   rl.Shader
 	grCRTFastSharpLoc int32 = -1
+	grHDRPopShader    rl.Shader
 	grCRTLottesShader rl.Shader
+	grLayerClips      = make(map[uint32]layerClip)
 )
 
 type TAdsScene struct {
@@ -444,8 +566,8 @@ func grPutPixel(sur *rl.RenderTexture2D, x, y uint16, c uint8) {
 		A: 0,
 	}
 
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	if x < 640 && y < 480 {
 		rl.DrawPixel(int32(x), int32(y), clr)
@@ -482,27 +604,33 @@ func graphicsInit() {
 		imageScalingMode = scalingNearest
 	}
 	grCRTFastShader = rl.LoadShaderFromMemory("", crtFastFragmentShader)
-	if rl.IsShaderValid(grCRTFastShader) {
+	detectedCRTCapabilities.fast = rl.IsShaderValid(grCRTFastShader)
+	if detectedCRTCapabilities.fast {
 		fastSourceLocation := rl.GetShaderLocation(grCRTFastShader, "sourceSize")
 		rl.SetShaderValue(grCRTFastShader, fastSourceLocation, []float32{screenWidth, screenHeight}, rl.ShaderUniformVec2)
 		grCRTFastSharpLoc = rl.GetShaderLocation(grCRTFastShader, "sharpness")
 		applyFastCRTSharpness()
 	} else {
 		log.Printf("Fast CRT shader failed to load; falling back to the lightweight CRT filter")
-		if crtFilterMode == crtFast {
-			crtFilterMode = crtLightweight
-		}
+	}
+	grHDRPopShader = rl.LoadShaderFromMemory("", hdrPopFragmentShader)
+	detectedCRTCapabilities.hdr = rl.IsShaderValid(grHDRPopShader)
+	if detectedCRTCapabilities.hdr {
+		hdrSourceLocation := rl.GetShaderLocation(grHDRPopShader, "sourceSize")
+		rl.SetShaderValue(grHDRPopShader, hdrSourceLocation, []float32{screenWidth, screenHeight}, rl.ShaderUniformVec2)
+	} else {
+		log.Printf("HDR Pop shader failed to load; falling back to the lightweight filter")
 	}
 	grCRTLottesShader = rl.LoadShaderFromMemory("", crtLottesFragmentShader)
-	if rl.IsShaderValid(grCRTLottesShader) {
+	detectedCRTCapabilities.lottes = rl.IsShaderValid(grCRTLottesShader)
+	if detectedCRTCapabilities.lottes {
 		lottesSourceLocation := rl.GetShaderLocation(grCRTLottesShader, "sourceSize")
 		rl.SetShaderValue(grCRTLottesShader, lottesSourceLocation, []float32{screenWidth, screenHeight}, rl.ShaderUniformVec2)
 	} else {
 		log.Printf("CRT-Lottes shader failed to load; falling back to the lightweight CRT filter")
-		if crtFilterMode == crtLottes {
-			crtFilterMode = crtLightweight
-		}
 	}
+	crtFilterMode = detectedCRTCapabilities.fallback(crtFilterMode)
+	performanceBenchmarkModes = detectedCRTCapabilities.modes()
 
 	// r.c. added by me, to mimic screen saver behavior, captures initial mouse position.
 	screenSaverPos = rl.GetMousePosition()
@@ -523,6 +651,10 @@ func graphicsEnd() {
 		rl.UnloadShader(grCRTFastShader)
 		grCRTFastShader.ID = 0
 		grCRTFastSharpLoc = -1
+	}
+	if grHDRPopShader.ID != 0 {
+		rl.UnloadShader(grHDRPopShader)
+		grHDRPopShader.ID = 0
 	}
 	if grCRTLottesShader.ID != 0 {
 		rl.UnloadShader(grCRTLottesShader)
@@ -571,7 +703,22 @@ func graphicsReleaseContent() {
 }
 
 func grToggleFullscreen() {
-
+	if appSettings.screenSaver || appSettings.previewParent != 0 {
+		return
+	}
+	rl.ToggleBorderlessWindowed()
+	appSettings.windowed = !appSettings.windowed
+	if appSettings.windowed {
+		rl.EnableCursor()
+		rl.ShowCursor()
+	} else if foregroundOverlayVisible() {
+		rl.ShowCursor()
+	} else {
+		rl.DisableCursor()
+		rl.HideCursor()
+	}
+	performanceModeChanged()
+	persistDisplayPlaybackSettings()
 }
 
 func grUpdateDisplay(
@@ -581,7 +728,13 @@ func grUpdateDisplay(
 	ttmCloudsThread *TTtmThread,
 ) {
 	draw := func() {
-		overlayWasVisible := menuVisible || traceVisible
+		overlayWasVisible := foregroundOverlayVisible()
+		mousePosition := rl.GetMousePosition()
+		queuedKey := rl.GetKeyPressed()
+		mouseButtonPressed := rl.IsMouseButtonPressed(rl.MouseButtonLeft) ||
+			rl.IsMouseButtonPressed(rl.MouseButtonRight) ||
+			rl.IsMouseButtonPressed(rl.MouseButtonMiddle)
+		uiObserveActivity(rl.GetTime(), mousePosition, mouseButtonPressed, queuedKey != 0 && queuedKey != rl.KeyF12)
 		if rl.IsKeyReleased(rl.KeyLeftShift) {
 			debugEnabled = !debugEnabled
 		}
@@ -597,6 +750,17 @@ func grUpdateDisplay(
 		rl.BeginDrawing()
 		defer func() {
 			rl.EndDrawing()
+			if screenshotRequested {
+				screenshotRequested = false
+				path, err := captureScreenshot()
+				if err != nil {
+					log.Printf("screenshot failed: %v", err)
+					menuShowStatus("Screenshot failed: " + err.Error())
+				} else {
+					log.Printf("screenshot saved: %s", path)
+					menuShowStatus("Screenshot saved: " + compactMiddle(path, 58))
+				}
+			}
 			performanceRecord(rl.GetTime() - renderStarted)
 		}()
 
@@ -633,14 +797,10 @@ func grUpdateDisplay(
 		}
 
 		if appSettings.screenSaver && appSettings.previewParent == 0 {
-			mousePosition := rl.GetMousePosition()
-			overlayVisible := menuVisible || traceVisible
+			overlayVisible := foregroundOverlayVisible()
 			controlPressed := screenSaverControlPressed(overlayWasVisible || overlayVisible)
 			interactive := overlayWasVisible || overlayVisible || controlPressed
-			otherKeyPressed := false
-			if !controlPressed {
-				otherKeyPressed = rl.GetKeyPressed() != 0
-			}
+			otherKeyPressed := !controlPressed && queuedKey != 0
 			if shouldExitScreenSaver(screenSaverPos != mousePosition, interactive, otherKeyPressed) {
 				rl.SetMasterVolume(0)
 				requestExit()
@@ -661,7 +821,14 @@ func grUpdateDisplay(
 		const fps = 30
 		const frameDelayMS = 1000 / fps
 		time.Sleep(time.Millisecond * time.Duration(frameDelayMS))
-		if menuVisible && !appSettings.screenSaver {
+		if playbackPaused {
+			// Keep rendering menus and input without returning to the engine's
+			// timer-decrement path. Reset the delay origin so resume does not
+			// immediately consume all time spent paused.
+			start = rl.GetTime()
+			continue
+		}
+		if (menuVisible || dataManagerVisible) && !appSettings.screenSaver {
 			continue
 		}
 
@@ -697,8 +864,8 @@ func shouldExitScreenSaver(mouseMoved, interactiveMouse, otherKeyPressed bool) b
 
 func screenSaverControlPressed(overlayVisible bool) bool {
 	baseKeys := []int32{
-		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9,
-		rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
+		rl.KeyF1, rl.KeyF2, rl.KeyF3, rl.KeyF4, rl.KeyF5, rl.KeyF7, rl.KeyF8, rl.KeyF9, rl.KeyF10, rl.KeyF12, rl.KeySpace,
+		rl.KeyD, rl.KeyN, rl.KeyT, rl.KeyH, rl.KeyEscape,
 	}
 	for _, key := range baseKeys {
 		if rl.IsKeyPressed(key) {
@@ -711,12 +878,16 @@ func screenSaverControlPressed(overlayVisible bool) bool {
 	overlayKeys := []int32{
 		rl.KeyUp, rl.KeyDown, rl.KeyEnter,
 		rl.KeyPageUp, rl.KeyPageDown, rl.KeyEnd, rl.KeyTab,
-		rl.KeySpace, rl.KeyF6, rl.KeyF, rl.KeyC, rl.KeyE, rl.KeyL,
+		rl.KeyF6, rl.KeyC, rl.KeyE, rl.KeyL, rl.KeyB, rl.KeyR, rl.KeyO,
 	}
 	for _, key := range overlayKeys {
 		if rl.IsKeyPressed(key) {
 			return true
 		}
+	}
+	controlDown := rl.IsKeyDown(rl.KeyLeftControl) || rl.IsKeyDown(rl.KeyRightControl)
+	if controlDown && rl.IsKeyPressed(rl.KeyF) {
+		return true
 	}
 	return rl.IsMouseButtonPressed(rl.MouseButtonLeft) ||
 		rl.IsMouseButtonPressed(rl.MouseButtonRight)
@@ -808,6 +979,9 @@ func drawComposedScene() {
 	if crtFilterMode == crtFast {
 		rl.BeginShaderMode(grCRTFastShader)
 		defer rl.EndShaderMode()
+	} else if crtFilterMode == crtHDR {
+		rl.BeginShaderMode(grHDRPopShader)
+		defer rl.EndShaderMode()
 	} else if crtFilterMode == crtLottes {
 		rl.BeginShaderMode(grCRTLottesShader)
 		defer rl.EndShaderMode()
@@ -865,7 +1039,11 @@ func cycleImageScalingMode() {
 }
 
 func grFreeLayer(sur *rl.RenderTexture2D) {
-	if sur == nil || sur.ID == 0 {
+	if sur == nil {
+		return
+	}
+	delete(grLayerClips, sur.ID)
+	if sur.ID == 0 {
 		return
 	}
 	rl.UnloadRenderTexture(*sur)
@@ -875,19 +1053,40 @@ func grFreeLayer(sur *rl.RenderTexture2D) {
 }
 
 func grSetClipZone(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16) {
+	if sur == nil || sur.ID == 0 {
+		return
+	}
 	x1 += int16(grDx)
 	y1 += int16(grDy)
 	x2 += int16(grDx)
 	y2 += int16(grDy)
 
-	// SDL2 code
-	//SDL_Rect rect = { x1, y1, x2-x1, y2-y1 };
-	//SDL_SetClipRect(sur, &rect);
+	grLayerClips[sur.ID] = normalizeLayerClip(int32(x1), int32(y1), int32(x2), int32(y2))
+}
 
-	// Equivalent Raylib code?? Not sure, I need to prove this out.
+func normalizeLayerClip(x1, y1, x2, y2 int32) layerClip {
+	x1 = max(int32(0), min(int32(screenWidth), x1))
+	y1 = max(int32(0), min(int32(screenHeight), y1))
+	x2 = max(x1, min(int32(screenWidth), x2))
+	y2 = max(y1, min(int32(screenHeight), y2))
+	return layerClip{x: x1, y: y1, width: x2 - x1, height: y2 - y1}
+}
 
-	//rect := image.Rect(int(x1), int(y1), int(x2), int(y2))
-	//grClippedImage = sur.SubImage(rect).(*ebiten.Image)
+func grBeginLayerDraw(sur *rl.RenderTexture2D) bool {
+	rl.BeginTextureMode(*sur)
+	clip, ok := grLayerClips[sur.ID]
+	if !ok {
+		return false
+	}
+	rl.BeginScissorMode(clip.x, clip.y, clip.width, clip.height)
+	return true
+}
+
+func grEndLayerDraw(clipped bool) {
+	if clipped {
+		rl.EndScissorMode()
+	}
+	rl.EndTextureMode()
 }
 
 func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
@@ -960,8 +1159,8 @@ func grDrawLine(sur *rl.RenderTexture2D, x1, y1, x2, y2 int16, colorIdx uint8) {
 		A: 0xff,
 	}
 
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	rl.DrawLine(int32(x1), int32(y1), int32(x2), int32(y2), c)
 }
@@ -998,8 +1197,8 @@ func grDrawRect(sur *rl.RenderTexture2D, x, y int16, width, height uint16, color
 		A: 0xff,
 	}
 
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	rl.DrawRectangle(int32(x), int32(y), int32(width), int32(height), c)
 }
@@ -1024,8 +1223,8 @@ func grDrawCircle(sur *rl.RenderTexture2D, x1, y1 int16, width, height uint16, f
 	// Comments from the original C code below.
 	// Bresenham's circle drawing algorithm
 	// Note : the code below intends to be pixel-perfect
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	grabColor := func(idx uint8) color.RGBA {
 		clr := ttmPalette[idx&0x0f]
@@ -1058,8 +1257,8 @@ func grDrawSprite(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sprite
 
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
 	//rl.ClearBackground(rl.Blank)
@@ -1092,8 +1291,8 @@ func grDrawSpriteFlip(sur *rl.RenderTexture2D, ttmSlot *TTtmSlot, x, y int16, sp
 	srcSurface := ttmSlot.sprites[imageNo][spriteNo]
 	//x += int16(srcSurface.Width) - 1 // In original C, but NOT NEEDED, in Raylib.
 
-	rl.BeginTextureMode(*sur)
-	defer rl.EndTextureMode()
+	clipped := grBeginLayerDraw(sur)
+	defer grEndLayerDraw(clipped)
 
 	// NOTE: this clears the layer, and only the instruction-set should clear it when it deems necessary.
 	//rl.ClearBackground(rl.Blank)
@@ -1166,9 +1365,9 @@ func grCopyRenderTextureRegion(source, destination *rl.RenderTexture2D, x, y, wi
 	}
 	sourceRect := grRenderTextureRect(x, y, width, height, source.Texture.Height)
 	destinationRect := rl.NewRectangle(float32(x), float32(y), float32(width), float32(height))
-	rl.BeginTextureMode(*destination)
+	clipped := grBeginLayerDraw(destination)
+	defer grEndLayerDraw(clipped)
 	rl.DrawTexturePro(source.Texture, sourceRect, destinationRect, rl.Vector2Zero(), 0, rl.White)
-	rl.EndTextureMode()
 }
 
 func grTTMBuffer(ttmThread *TTtmThread, bufferID uint16, create bool) *rl.RenderTexture2D {

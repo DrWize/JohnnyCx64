@@ -76,7 +76,7 @@ func parseOptions(args []string) (appOptions, error) {
 	fs.StringVar(&opts.ttm, "ttm", "", "play one TTM resource directly")
 	fs.BoolVar(&opts.menu, "menu", false, "open the hidden menu at startup")
 	fs.BoolVar(&opts.noSaveSettings, "no-save-settings", false, "do not persist settings from this session")
-	fs.StringVar(&opts.crt, "crt", "", "CRT mode: off, lightweight, fast, or lottes")
+	fs.StringVar(&opts.crt, "crt", "", "display filter: off, lightweight, fast, hdr, or lottes")
 	fs.StringVar(&opts.dataDir, "data-dir", "", "folder containing RESOURCE.MAP, RESOURCE.001, and optional sound*.wav files")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
@@ -110,8 +110,8 @@ func parseOptions(args []string) (appOptions, error) {
 	}
 	if opts.crt != "" {
 		opts.crt = strings.ToLower(opts.crt)
-		if mode := crtFilter(opts.crt); mode != crtOff && mode != crtLightweight && mode != crtFast && mode != crtLottes {
-			return opts, fmt.Errorf("crt must be off, lightweight, fast, or lottes")
+		if mode := crtFilter(opts.crt); mode != crtOff && mode != crtLightweight && mode != crtFast && mode != crtHDR && mode != crtLottes {
+			return opts, fmt.Errorf("crt must be off, lightweight, fast, hdr, or lottes")
 		}
 	}
 	return opts, nil
@@ -149,8 +149,8 @@ func runApp() (exitCode int) {
 	appSettings = opts
 	normalizedArgs, _, _, _ := normalizeWindowsScreenSaverArgs(rawArgs)
 	loadPersistentSettings(normalizedArgs)
-	if err := loadResourceArchives(appSettings.dataDir); err != nil {
-		showErrorDialog("Johnny Castaway data files", err.Error()+"\n\nUse --data-dir to select the folder containing your original files.")
+	if err := loadResourceArchivesForStartup(); err != nil {
+		showErrorDialog("Johnny Castaway data files", err.Error()+"\n\nRun the application or /c configuration mode to browse for your original files, or use --data-dir.")
 		return 3
 	}
 
@@ -175,6 +175,27 @@ func runApp() (exitCode int) {
 	currentContent = opts.ttm
 	runEngine(func() { runContentSessions(opts.ttm) })
 	return 0
+}
+
+func loadResourceArchivesForStartup() error {
+	err := loadResourceArchives(appSettings.dataDir)
+	if err == nil || (appSettings.screenSaver && !appSettings.configuration) {
+		return err
+	}
+
+	selected, accepted, pickerErr := chooseDataDirectory(0)
+	if pickerErr != nil {
+		return fmt.Errorf("select data folder: %w", pickerErr)
+	}
+	if !accepted {
+		return err
+	}
+	if err := loadResourceArchives(selected); err != nil {
+		return fmt.Errorf("selected data folder is invalid: %w", err)
+	}
+	appSettings.dataDir = selected
+	persistDataDirectory(selected)
+	return nil
 }
 
 func runContentSessions(target string) {
@@ -220,8 +241,9 @@ func releaseContentSession() {
 
 func setupApp() {
 	isPreview := appSettings.previewParent != 0
+	toggleableWindow := !appSettings.screenSaver && !isPreview
 	flags := uint32(rl.FlagMsaa4xHint | rl.FlagWindowHighdpi)
-	if appSettings.windowed {
+	if appSettings.windowed || toggleableWindow {
 		flags |= rl.FlagWindowResizable
 	} else {
 		flags |= rl.FlagWindowUndecorated
@@ -258,19 +280,24 @@ func setupApp() {
 			mon+1, int(monPos.X), int(monPos.Y), monW, monH,
 			float64(monW)/float64(monH), is32By9Display(monW, monH))
 
-		if appSettings.windowed {
-			winW, winH := 960, 720
-			if winW > monW {
-				winW = monW
+		winW, winH := defaultWindowedSize(monW, monH)
+		if toggleableWindow {
+			// Start from the centered decorated size even when fullscreen was
+			// requested. Raylib then remembers these bounds and can restore them
+			// when F toggles borderless fullscreen off.
+			rl.SetWindowSize(winW, winH)
+			rl.SetWindowPosition(int(monPos.X)+(monW-winW)/2, int(monPos.Y)+(monH-winH)/2)
+			if !appSettings.windowed {
+				rl.ToggleBorderlessWindowed()
 			}
-			if winH > monH {
-				winH = monH
-			}
+		} else if appSettings.windowed {
 			rl.SetWindowSize(winW, winH)
 			rl.SetWindowPosition(int(monPos.X)+(monW-winW)/2, int(monPos.Y)+(monH-winH)/2)
 		} else {
 			rl.SetWindowSize(monW, monH)
 			rl.SetWindowPosition(int(monPos.X), int(monPos.Y))
+		}
+		if !appSettings.windowed {
 			rl.DisableCursor()
 			rl.HideCursor()
 		}
@@ -303,6 +330,17 @@ func setupApp() {
 	// twice and render-cost measurements exclude an artificial wait.
 	rl.SetTargetFPS(0)
 	graphicsInit()
+}
+
+func defaultWindowedSize(monitorWidth, monitorHeight int) (width, height int) {
+	width, height = 960, 720
+	if width > monitorWidth {
+		width = monitorWidth
+	}
+	if height > monitorHeight {
+		height = monitorHeight
+	}
+	return width, height
 }
 
 func resolveMonitorIndex(requested, monitorCount int) int {

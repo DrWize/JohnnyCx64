@@ -78,6 +78,22 @@ func soundStopAll() {
 	}
 }
 
+func soundSetPaused(paused bool) {
+	if !audioReady {
+		return
+	}
+	for i, snd := range soundSfx {
+		if sfx[i] == "missing" || !rl.IsSoundValid(snd) {
+			continue
+		}
+		if paused {
+			rl.PauseSound(snd)
+		} else {
+			rl.ResumeSound(snd)
+		}
+	}
+}
+
 func soundPlay(id uint16) {
 	if !audioReady || appSettings.mute {
 		return
@@ -99,4 +115,7 @@ func soundPlay(id uint16) {
 		log.Printf("playing sound id=%d file=%s", id, sfx[id])
 	}
 	rl.PlaySound(snd)
+	if playbackPaused {
+		rl.PauseSound(snd)
+	}
 }

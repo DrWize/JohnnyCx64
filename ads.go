@@ -390,6 +390,9 @@ func adsInit() {
 
 func adsPlaySingleTtm(ttmName string) {
 	adsInit()
+	// Direct TTM playback loads a fixed background. Do not inherit the previous
+	// Full Story scene's randomized or left-island placement.
+	ttmUseStandalonePlacement()
 	// A previous content session may have owned the holiday preview layer.
 	// Content switching releases that layer while retaining the Raylib window.
 	ttmHolidayThread.ttmLayer = nil
@@ -803,6 +806,12 @@ func adsInitIsland() {
 		ttmCloudsThread.ttmLayer = nil
 	}
 	ttmCloudsThread.ttmLayer = grNewLayer()
+	// Decode the sprite sheet once per island. The previous dormant animator
+	// loaded it on every animation tick, which made enabling cloud motion far
+	// more expensive than necessary.
+	if islandState.clouds.numClouds > 0 {
+		grLoadBmp(&ttmCloudsSlot, 0, "BACKGRND.BMP")
+	}
 
 	islandAnimateClouds(&ttmCloudsThread)
 }

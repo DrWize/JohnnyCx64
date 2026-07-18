@@ -20,7 +20,7 @@ BEGIN
       VALUE "FileVersion", "1.0.0.0\0"
       VALUE "InternalName", "JohnnyCastaway\0"
       VALUE "LegalCopyright", "Engine contributors; original assets copyright their respective owners\0"
-      VALUE "OriginalFilename", "JohnnyCastaway-x64.exe\0"
+      VALUE "OriginalFilename", "JohnnyCastaway.exe\0"
       VALUE "ProductName", "Johnny Castaway 2026\0"
       VALUE "ProductVersion", "2026.1\0"
     END

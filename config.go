@@ -14,7 +14,8 @@ import (
 // A second pass refactor can be done to fix this garbage.
 var (
 	// r.c. - added by me in case someone tries to run multiple instances of the screensaver.
-	cfgLock sync.Mutex
+	cfgLock       sync.Mutex
+	cfgActivePath string
 )
 
 type TConfig struct {
@@ -35,33 +36,43 @@ type TConfig struct {
 }
 
 const (
-	CfgFileName         = "config.txt"
-	LegacyCfgName       = ".johnny_castaway_2026"
-	CurrentDayKey       = "currentDay="
-	DateKey             = "date="
-	CRTFilterKey        = "crtFilter="
-	CRTModeKey          = "crtMode="
-	SmoothingKey        = "smoothing="
-	ScalingModeKey      = "scalingMode="
-	SceneOrderKey       = "scenesInOrder="
-	WindowedKey         = "windowed="
-	MuteKey             = "mute="
-	StretchKey          = "stretch="
-	MonitorKey          = "monitor="
-	FastCRTSharpnessKey = "fastCRTSharpness="
-	ShowPerformanceKey  = "showPerformance="
-	DataDirectoryKey    = "dataDirectory="
+	CfgFileName          = "JohnnyCastaway.ini"
+	LegacyAppDataCfgName = "config.txt"
+	LegacyCfgName        = ".johnny_castaway_2026"
+	CurrentDayKey        = "currentDay="
+	DateKey              = "date="
+	CRTFilterKey         = "crtFilter="
+	CRTModeKey           = "crtMode="
+	SmoothingKey         = "smoothing="
+	ScalingModeKey       = "scalingMode="
+	SceneOrderKey        = "scenesInOrder="
+	WindowedKey          = "windowed="
+	MuteKey              = "mute="
+	StretchKey           = "stretch="
+	MonitorKey           = "monitor="
+	FastCRTSharpnessKey  = "fastCRTSharpness="
+	ShowPerformanceKey   = "showPerformance="
+	DataDirectoryKey     = "dataDirectory="
 )
 
 func cfgFullPath() string {
+	executable, err := os.Executable()
+	if err != nil {
+		panic(fmt.Errorf("executable path: %w", err))
+	}
+	return configPathBesideExecutable(executable)
+}
+
+func configPathBesideExecutable(executable string) string {
+	return filepath.Join(filepath.Dir(executable), CfgFileName)
+}
+
+func cfgFallbackPath(name string) (string, error) {
 	configDir, err := appDataDir()
 	if err != nil {
-		panic(fmt.Errorf("local app data: %w", err))
+		return "", err
 	}
-	if err := os.MkdirAll(configDir, 0755); err != nil {
-		panic(fmt.Errorf("create config directory: %w", err))
-	}
-	return filepath.Join(configDir, CfgFileName)
+	return filepath.Join(configDir, name), nil
 }
 
 func cfgFileWrite(cfg *TConfig) {
@@ -72,13 +83,37 @@ func cfgFileWrite(cfg *TConfig) {
 
 func cfgFileWriteUnlocked(cfg *TConfig) {
 	data := cfgFormat(cfg)
-	if err := os.WriteFile(cfgFullPath(), []byte(data), 0644); err != nil {
-		panic(fmt.Errorf("write config: %w", err))
+	portablePath := cfgFullPath()
+	if err := os.WriteFile(portablePath, []byte(data), 0644); err == nil {
+		cfgActivePath = portablePath
+		return
+	} else {
+		fmt.Fprintf(os.Stderr, "WARN: cannot write portable settings %s: %v\n", portablePath, err)
 	}
+	fallbackPath, fallbackErr := cfgFallbackPath(CfgFileName)
+	if fallbackErr == nil {
+		fallbackErr = os.MkdirAll(filepath.Dir(fallbackPath), 0755)
+	}
+	if fallbackErr == nil {
+		fallbackErr = os.WriteFile(fallbackPath, []byte(data), 0644)
+	}
+	if fallbackErr != nil {
+		panic(fmt.Errorf("write config beside executable or in LocalAppData: %w", fallbackErr))
+	}
+	cfgActivePath = fallbackPath
+}
+
+func cfgDisplayPath() string {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	if cfgActivePath != "" {
+		return cfgActivePath
+	}
+	return cfgFullPath()
 }
 
 func cfgFormat(cfg *TConfig) string {
-	return fmt.Sprintf("%s%d\n%s%d\n%s%d\n%s%s\n%s%d\n%s%s\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%s\n",
+	return fmt.Sprintf("; Johnny Castaway persistent settings\n; This file is safe to edit while Johnny Castaway is closed.\n\n[Settings]\n%s%d\n%s%d\n%s%d\n%s%s\n%s%d\n%s%s\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%d\n%s%s\n",
 		CurrentDayKey, cfg.CurrentDay,
 		DateKey, cfg.CurrentDate,
 		CRTFilterKey, boolInt(cfg.CRTFilterEnabled),
@@ -100,18 +135,37 @@ func cfgFileRead(cfg *TConfig) {
 	cfgLock.Lock()
 	defer cfgLock.Unlock()
 
-	f, err := os.Open(cfgFullPath())
+	portablePath := cfgFullPath()
+	type configCandidate struct {
+		path    string
+		migrate bool
+	}
+	candidates := []configCandidate{{path: portablePath}}
+	if fallbackPath, fallbackErr := cfgFallbackPath(CfgFileName); fallbackErr == nil {
+		candidates = append(candidates, configCandidate{path: fallbackPath})
+	}
+	if legacyPath, legacyErr := cfgFallbackPath(LegacyAppDataCfgName); legacyErr == nil {
+		candidates = append(candidates, configCandidate{path: legacyPath, migrate: true})
+	}
+	if home, homeErr := os.UserHomeDir(); homeErr == nil {
+		candidates = append(candidates, configCandidate{path: filepath.Join(home, LegacyCfgName), migrate: true})
+	}
+
+	var f *os.File
+	var err error
 	migrateLegacy := false
-	if os.IsNotExist(err) {
-		if home, homeErr := os.UserHomeDir(); homeErr == nil {
-			f, err = os.Open(filepath.Join(home, LegacyCfgName))
-			migrateLegacy = err == nil
+	for _, candidate := range candidates {
+		f, err = os.Open(candidate.path)
+		if err == nil {
+			cfgActivePath = candidate.path
+			migrateLegacy = candidate.migrate
+			break
+		}
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "WARN: failed to read settings %s: %v\n", candidate.path, err)
 		}
 	}
 	if err != nil {
-		if !os.IsNotExist(err) {
-			fmt.Println("WARN: failed to read file with err: ", err.Error())
-		}
 		return
 	}
 
@@ -213,8 +267,65 @@ func loadPersistentSettings(args []string) {
 		appSettings.dataDir = cfg.DataDirectory
 	}
 	if appSettings.dataDir == "" {
-		appSettings.dataDir = "assets"
+		appSettings.dataDir = defaultDataDirectory()
 	}
+}
+
+func defaultDataDirectory() string {
+	executablePath, executableErr := os.Executable()
+	workingDirectory, workingErr := os.Getwd()
+	if executableErr != nil {
+		executablePath = ""
+	}
+	if workingErr != nil {
+		workingDirectory = ""
+	}
+
+	return chooseDefaultDataDirectory(executablePath, workingDirectory, func(directory string) bool {
+		return validateDataDirectory(directory) == nil
+	})
+}
+
+func chooseDefaultDataDirectory(executablePath, workingDirectory string, valid func(string) bool) string {
+	const defaultFolderName = "scrantic"
+	candidates := make([]string, 0, 6)
+	addCandidate := func(directory string) {
+		if directory == "" {
+			return
+		}
+		directory = filepath.Clean(directory)
+		for _, candidate := range candidates {
+			if strings.EqualFold(candidate, directory) {
+				return
+			}
+		}
+		candidates = append(candidates, directory)
+	}
+
+	if executablePath != "" {
+		executableDirectory := filepath.Dir(executablePath)
+		addCandidate(filepath.Join(executableDirectory, defaultFolderName))
+		addCandidate(filepath.Join(executableDirectory, "..", defaultFolderName))
+		// Development builds may live in a project build folder while the locally
+		// supplied data directory lives beside the project.
+		addCandidate(filepath.Join(executableDirectory, "..", "..", defaultFolderName))
+	}
+	if workingDirectory != "" {
+		addCandidate(filepath.Join(workingDirectory, defaultFolderName))
+		addCandidate(filepath.Join(workingDirectory, "..", defaultFolderName))
+	}
+
+	for _, candidate := range candidates {
+		if valid(candidate) {
+			return candidate
+		}
+	}
+	if len(candidates) != 0 {
+		// Keep startup errors and the folder picker pointed at the portable
+		// convention even when the user has not copied the archives yet.
+		return candidates[0]
+	}
+	return defaultFolderName
 }
 
 func mergePersistentAppOptions(options appOptions, cfg TConfig, args []string) appOptions {
@@ -253,6 +364,16 @@ func persistDisplayPlaybackSettings() {
 		cfg.Monitor = appSettings.monitor
 	}
 	cfg.DataDirectory = appSettings.dataDir
+	cfgFileWrite(&cfg)
+}
+
+func persistDataDirectory(directory string) {
+	if appSettings.noSaveSettings {
+		return
+	}
+	var cfg TConfig
+	cfgFileRead(&cfg)
+	cfg.DataDirectory = directory
 	cfgFileWrite(&cfg)
 }
 

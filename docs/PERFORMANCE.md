@@ -1,7 +1,7 @@
 # Display performance matrix
 
-This document records physical-output measurements for JohnnyCx86 display and
-CRT modes. Results are hardware-specific and are not substitutes for testing on
+This document records physical-output measurements for JohnnyCx64 display and
+display-filter modes. Results are hardware-specific and are not substitutes for testing on
 lower-powered GPUs.
 
 ## 2026-07-16 baseline
@@ -20,7 +20,7 @@ recorded through the F8 performance instrumentation after 90 render samples.
 CPU submission time measures the application's render submission work; the
 current HUD's GPU-cost label is qualitative and is not a measured GPU duration.
 
-| CRT mode | FPS | CPU submit | 30 FPS budget | CPU impact | Expected GPU cost |
+| Display mode | FPS | CPU submit | 30 FPS budget | CPU impact | Expected GPU cost |
 | --- | ---: | ---: | ---: | --- | --- |
 | Off | 30 | 0.19 ms | 1% | Very low | Minimal |
 | Lightweight | 30 | 0.19 ms | 1% | Very low | Very low |
@@ -30,6 +30,11 @@ current HUD's GPU-cost label is qualitative and is not a measured GPU duration.
 All modes met the target frame rate at this resolution. These numbers show no
 CPU submission bottleneck on the tested machine, but they do not establish safe
 defaults for integrated or older GPUs.
+
+HDR Pop was added after this baseline and has no physical-output result yet. It
+must be measured with Windows HDR both enabled and disabled; because Raylib's
+current swapchain is SDR, treat it as an HDR-style enhancement rather than an
+HDR10 signal.
 
 ## Required measurements
 

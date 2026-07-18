@@ -5,13 +5,18 @@ import (
 	"crypto/md5"
 	"encoding/binary"
 	"fmt"
+	"image"
 	"image/color"
+	"image/png"
 	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
+
+	rl "github.com/gen2brain/raylib-go/raylib"
 )
 
 func TestParseOptions(t *testing.T) {
@@ -23,6 +28,7 @@ func TestParseOptions(t *testing.T) {
 	}{
 		{name: "defaults", want: appOptions{monitor: 1}},
 		{name: "Fast CRT override", args: []string{"--crt", "FAST"}, want: appOptions{monitor: 1, crt: "fast"}},
+		{name: "HDR Pop override", args: []string{"--crt", "HDR"}, want: appOptions{monitor: 1, crt: "hdr"}},
 		{
 			name: "all options",
 			args: []string{"--windowed", "--screensaver", "--mute", "--stretch", "--monitor", "2", "--ttm", "fire.ttm", "--menu", "--data-dir", "C:\\Johnny"},
@@ -47,6 +53,297 @@ func TestParseOptions(t *testing.T) {
 				t.Fatalf("parseOptions() = %#v, want %#v", got, test.want)
 			}
 		})
+	}
+}
+
+func TestCRTCapabilities(t *testing.T) {
+	all := crtCapabilities{fast: true, hdr: true, lottes: true}
+	if got, want := all.modes(), []crtFilter{crtOff, crtLightweight, crtFast, crtHDR, crtLottes}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("all-capability modes = %#v, want %#v", got, want)
+	}
+	if got := all.next(crtLottes); got != crtOff {
+		t.Fatalf("next(lottes) = %q, want off", got)
+	}
+	if !crtHDR.usesNativeFrame() {
+		t.Fatal("HDR Pop must sample the native completed frame")
+	}
+
+	limited := crtCapabilities{}
+	if got, want := limited.modes(), []crtFilter{crtOff, crtLightweight}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("limited modes = %#v, want %#v", got, want)
+	}
+	if got := limited.next(crtLightweight); got != crtOff {
+		t.Fatalf("limited next(lightweight) = %q, want off", got)
+	}
+	if got := limited.fallback(crtFast); got != crtLightweight {
+		t.Fatalf("fallback(fast) = %q, want lightweight", got)
+	}
+
+	fastOnly := crtCapabilities{fast: true}
+	if got := fastOnly.next(crtLightweight); got != crtFast {
+		t.Fatalf("fast-only next(lightweight) = %q, want fast", got)
+	}
+	if got := fastOnly.next(crtFast); got != crtOff {
+		t.Fatalf("fast-only next(fast) = %q, want off", got)
+	}
+
+	hdrOnly := crtCapabilities{hdr: true}
+	if got := hdrOnly.next(crtLightweight); got != crtHDR {
+		t.Fatalf("HDR-only next(lightweight) = %q, want hdr", got)
+	}
+	if got := hdrOnly.fallback(crtHDR); got != crtHDR {
+		t.Fatalf("HDR fallback = %q, want hdr", got)
+	}
+}
+
+func TestNormalizeLayerClip(t *testing.T) {
+	tests := []struct {
+		name           string
+		x1, y1, x2, y2 int32
+		want           layerClip
+	}{
+		{name: "normal", x1: 10, y1: 20, x2: 110, y2: 220, want: layerClip{x: 10, y: 20, width: 100, height: 200}},
+		{name: "canvas bounds", x1: -20, y1: -10, x2: 700, y2: 500, want: layerClip{x: 0, y: 0, width: 640, height: 480}},
+		{name: "empty reversed", x1: 80, y1: 90, x2: 20, y2: 30, want: layerClip{x: 80, y: 90}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := normalizeLayerClip(test.x1, test.y1, test.x2, test.y2); got != test.want {
+				t.Fatalf("normalizeLayerClip() = %#v, want %#v", got, test.want)
+			}
+		})
+	}
+}
+
+func TestCloudPlacementLimitsMatchReferenceCanvas(t *testing.T) {
+	tests := []struct {
+		cloudNo    int
+		maxX, maxY int
+	}{
+		{cloudNo: 0, maxX: 511, maxY: 99},
+		{cloudNo: 1, maxX: 448, maxY: 78},
+		{cloudNo: 2, maxX: 376, maxY: 59},
+	}
+	for _, test := range tests {
+		gotX, gotY := cloudPlacementLimits(test.cloudNo)
+		if gotX != test.maxX || gotY != test.maxY {
+			t.Fatalf("cloudPlacementLimits(%d) = (%d, %d), want (%d, %d)", test.cloudNo, gotX, gotY, test.maxX, test.maxY)
+		}
+	}
+}
+
+func TestCloudNextXMovesAndWraps(t *testing.T) {
+	tests := []struct {
+		name                string
+		x, speed, direction int32
+		want                int32
+	}{
+		{name: "right", x: 100, speed: 2, direction: 0, want: 102},
+		{name: "left", x: 100, speed: 1, direction: 1, want: 99},
+		{name: "wrap right edge", x: 905, speed: 2, direction: 0, want: -264},
+		{name: "wrap left edge", x: -265, speed: 1, direction: 1, want: 904},
+	}
+	for _, test := range tests {
+		if got := cloudNextX(test.x, test.speed, test.direction); got != test.want {
+			t.Errorf("%s: cloudNextX() = %d, want %d", test.name, got, test.want)
+		}
+	}
+}
+
+func TestStoryNightForHour(t *testing.T) {
+	tests := []struct {
+		hour, override, want int
+	}{
+		{hour: 0, override: -1, want: 1},
+		{hour: 5, override: -1, want: 1},
+		{hour: 6, override: -1, want: 0},
+		{hour: 17, override: -1, want: 0},
+		{hour: 18, override: -1, want: 1},
+		{hour: 23, override: -1, want: 1},
+		{hour: 23, override: 0, want: 0},
+		{hour: 12, override: 1, want: 1},
+	}
+	for _, test := range tests {
+		if got := storyNightForHour(test.hour, test.override); got != test.want {
+			t.Errorf("storyNightForHour(%d, %d) = %d, want %d", test.hour, test.override, got, test.want)
+		}
+	}
+}
+
+func TestDayNightKeyboardAndSettingsCycle(t *testing.T) {
+	oldOverride := islandDayNightOverride
+	oldNight := islandState.night
+	t.Cleanup(func() {
+		islandDayNightOverride = oldOverride
+		islandState.night = oldNight
+	})
+	islandDayNightOverride = -1
+
+	if got := islandCycleDayNight(); got != "Day" {
+		t.Fatalf("first day/night preview = %q, want Day", got)
+	}
+	if got := islandCycleDayNight(); got != "Night" {
+		t.Fatalf("second day/night preview = %q, want Night", got)
+	}
+	if got := islandCycleDayNight(); got != "Automatic (clock)" {
+		t.Fatalf("third day/night preview = %q, want Automatic (clock)", got)
+	}
+}
+
+func TestShortcutDockShowsCurrentSkyMode(t *testing.T) {
+	oldOverride := islandDayNightOverride
+	t.Cleanup(func() { islandDayNightOverride = oldOverride })
+
+	tests := []struct {
+		override int
+		want     string
+	}{
+		{override: -1, want: "Sky Auto"},
+		{override: 0, want: "Sky Day"},
+		{override: 1, want: "Sky Night"},
+	}
+	for _, test := range tests {
+		islandDayNightOverride = test.override
+		got := ""
+		for _, item := range shortcutDockItems(false) {
+			if item.key == "D" {
+				got = item.action
+				break
+			}
+		}
+		if got != test.want {
+			t.Errorf("D shortcut for override %d = %q, want %q", test.override, got, test.want)
+		}
+	}
+}
+
+func TestMissingIntroScreenFailsExplicitly(t *testing.T) {
+	savedCount := numScrResources
+	numScrResources = 0
+	defer func() { numScrResources = savedCount }()
+
+	defer func() {
+		recovered := recover()
+		if got, want := fmt.Sprint(recovered), "scr resource: INTRO.SCR not found"; got != want {
+			t.Fatalf("missing intro failure = %q, want %q", got, want)
+		}
+	}()
+	findSCRResource("INTRO.SCR")
+}
+
+func TestWalkInitAtDestinationTurnsInPlace(t *testing.T) {
+	walkInit(0, 2, 0, 6)
+	if currentSpot != 0 || finalSpot != 0 || nextSpot != -1 || nextHdg != 6 || lastTurn != 1 || hasArrived != 0 {
+		t.Fatalf("same-spot walk state = current %d final %d nextSpot %d nextHdg %d lastTurn %d arrived %d",
+			currentSpot, finalSpot, nextSpot, nextHdg, lastTurn, hasArrived)
+	}
+}
+
+func TestWalkingPathsAreBoundedAndOrdered(t *testing.T) {
+	for from := 0; from < NumOfNodes; from++ {
+		for to := 0; to < NumOfNodes; to++ {
+			path := calcPath(from, to)
+			if len(path) < 2 || path[0] != from {
+				t.Fatalf("path %d -> %d starts with %#v", from, to, path)
+			}
+			terminator := -1
+			for index, node := range path {
+				if node == UndefNode {
+					terminator = index
+					break
+				}
+				if node < 0 || node >= NumOfNodes {
+					t.Fatalf("path %d -> %d contains invalid node %d", from, to, node)
+				}
+			}
+			if terminator < 1 || path[terminator-1] != to {
+				t.Fatalf("path %d -> %d does not end at its destination: %#v", from, to, path)
+			}
+			if terminator+1 != len(path) {
+				t.Fatalf("path %d -> %d contains frames after its terminator: %#v", from, to, path)
+			}
+		}
+	}
+}
+
+func TestWalkingFrameSequencesStayInSourceOrder(t *testing.T) {
+	for from := 0; from < NumOfNodes; from++ {
+		for to := 0; to < NumOfNodes; to++ {
+			start := walkDataBookmarks[from][to]
+			if start < 0 {
+				continue
+			}
+			ended := false
+			for index := start; index < len(walkData); index++ {
+				frame := walkData[index]
+				if frame[1] == 0 {
+					ended = true
+					break
+				}
+				if frame[3] > 32 {
+					t.Fatalf("walk %d -> %d frame %d uses sprite %d outside JOHNWALK order", from, to, index-start, frame[3])
+				}
+			}
+			if !ended {
+				t.Fatalf("walk %d -> %d has no terminal frame", from, to)
+			}
+		}
+	}
+}
+
+func TestWalkingTreeOcclusionIsFixedAndOrdered(t *testing.T) {
+	frame := [4]uint16{1, 400, 230, 23}
+	items := walkDrawItems(frame, true)
+	if len(items) != 3 {
+		t.Fatalf("behind-tree draw count = %d, want character, trunk, leaves", len(items))
+	}
+	if items[0].tree || items[0].sprite != 23 || items[0].x != 399 || items[0].y != 230 || !items[0].flipped {
+		t.Fatalf("character draw item = %#v", items[0])
+	}
+	if !items[1].tree || items[1].sprite != walkTreeTrunkSprite || items[1].x != 442 || items[1].y != 148 {
+		t.Fatalf("tree trunk draw item = %#v", items[1])
+	}
+	if !items[2].tree || items[2].sprite != walkTreeLeavesSprite || items[2].x != 365 || items[2].y != 122 {
+		t.Fatalf("tree leaves draw item = %#v", items[2])
+	}
+
+	oldIslandX, oldIslandY := islandState.xPos, islandState.yPos
+	oldDX, oldDY := grDx, grDy
+	t.Cleanup(func() {
+		islandState.xPos, islandState.yPos = oldIslandX, oldIslandY
+		grDx, grDy = oldDX, oldDY
+	})
+	islandState.xPos, islandState.yPos = 7, -3
+	grDx, grDy = 400, 500
+	resetWalkDrawOffset()
+	if grDx != 7 || grDy != -3 {
+		t.Fatalf("walk/tree offset = (%d,%d), want stable island offset (7,-3)", grDx, grDy)
+	}
+}
+
+func TestTTMPlacementFollowsIsland(t *testing.T) {
+	oldIsland, oldDX, oldDY := islandState, ttmDx, ttmDy
+	t.Cleanup(func() {
+		islandState, ttmDx, ttmDy = oldIsland, oldDX, oldDY
+	})
+
+	islandState.xPos = -137
+	islandState.yPos = 42
+	ttmDx, ttmDy = 999, 999 // Simulate placement inherited from prior content.
+
+	ttmFollowIslandPlacement(0)
+	if ttmDx != -137 || ttmDy != 42 {
+		t.Fatalf("selected TTM placement = (%d,%d), want current island (-137,42)", ttmDx, ttmDy)
+	}
+
+	ttmFollowIslandPlacement(272)
+	if ttmDx != 135 || ttmDy != 42 {
+		t.Fatalf("left-island scene placement = (%d,%d), want (135,42)", ttmDx, ttmDy)
+	}
+
+	ttmUseStandalonePlacement()
+	if islandState.xPos != 0 || islandState.yPos != 0 || ttmDx != 0 || ttmDy != 0 {
+		t.Fatalf("selected standalone TTM kept placement: island=(%d,%d), TTM=(%d,%d)", islandState.xPos, islandState.yPos, ttmDx, ttmDy)
 	}
 }
 
@@ -119,6 +416,30 @@ func TestMenuRunNextTTMWraps(t *testing.T) {
 	t.Fatal("menuRunNextTTM() did not request a content switch")
 }
 
+func TestTTMCatalogKeepsFriendlyLabelsSeparateFromResourceNames(t *testing.T) {
+	if len(ttmCatalog) != 41 {
+		t.Fatalf("TTM catalog contains %d entries, want 41", len(ttmCatalog))
+	}
+	item := ttmCatalogInfo("MJFIRE.TTM")
+	if item.label != "Building a Campfire" {
+		t.Fatalf("MJFIRE.TTM label = %q", item.label)
+	}
+	if item.description == "" {
+		t.Fatal("MJFIRE.TTM description is empty")
+	}
+	entry := menuEntry{label: item.label, description: item.description, target: "MJFIRE.TTM"}
+	if got := menuEntryTitle(entry); got != "Building a Campfire (MJFIRE.TTM)" {
+		t.Fatalf("menu title = %q", got)
+	}
+}
+
+func TestTTMCatalogFallsBackToResourceName(t *testing.T) {
+	item := ttmCatalogInfo("UNKNOWN.TTM")
+	if item.label != "UNKNOWN.TTM" || item.description == "" {
+		t.Fatalf("fallback catalog item = %#v", item)
+	}
+}
+
 func TestTTMLoadScansStringBearingOpcode(t *testing.T) {
 	data := make([]byte, 0, 20)
 	data = binary.LittleEndian.AppendUint16(data, 0xF02F)
@@ -164,8 +485,8 @@ func TestMissingFireSpritesAreSkipped(t *testing.T) {
 }
 
 func TestFireTTMMissingSpriteUsage(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	resource := findTTMResource("FIRE.TTM")
 	data := resource.UncompressedData
 	selectedSlot := uint16(0)
@@ -245,8 +566,8 @@ func TestRenderTextureCopyRect(t *testing.T) {
 }
 
 func TestEmbeddedDrawScreenOpcodesUseSupportedBuffers(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 
 	found := 0
 	for resourceIndex := 0; resourceIndex < numTtmResources; resourceIndex++ {
@@ -317,8 +638,8 @@ func TestRotateLogIfNeeded(t *testing.T) {
 }
 
 func TestAllShortScreensHaveValidPaddingColor(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	grLoadPalette(&palResources[0])
 
 	shortScreens := 0
@@ -340,9 +661,23 @@ func TestAllShortScreensHaveValidPaddingColor(t *testing.T) {
 	}
 }
 
-func resetEmbeddedResourcesForTest(t *testing.T) {
-	if err := loadResourceArchives("assets"); err != nil {
-		t.Skipf("original user-supplied test data is unavailable: %v", err)
+func testDataDirectory(t *testing.T) string {
+	t.Helper()
+	candidates := []string{"assets", defaultDataDirectory()}
+	for _, directory := range candidates {
+		if validateDataDirectory(directory) == nil {
+			return directory
+		}
+	}
+	t.Skip("verified original user-supplied test data is unavailable in assets or scrantic")
+	return ""
+}
+
+func resetEmbeddedResourcesForTest(t *testing.T) string {
+	t.Helper()
+	dataDirectory := testDataDirectory(t)
+	if err := loadResourceArchives(dataDirectory); err != nil {
+		t.Fatalf("load verified test data from %s: %v", dataDirectory, err)
 	}
 	oldADSResources, oldADSCount := adsResources, numAdsResources
 	oldBMPResources, oldBMPCount := bmpResources, numBmpResources
@@ -363,12 +698,11 @@ func resetEmbeddedResourcesForTest(t *testing.T) {
 	palResources = make([]TPALResource, MaxPALResources)
 	ttmResources = make([]TTTMResource, MaxTTMResources)
 	numAdsResources, numBmpResources, numPalResources, numScrResources, numTtmResources = 0, 0, 0, 0, 0
+	return dataDirectory
 }
 
 func TestEmbeddedArchiveHashesAndDecompression(t *testing.T) {
-	if err := loadResourceArchives("assets"); err != nil {
-		t.Skipf("original user-supplied test data is unavailable: %v", err)
-	}
+	dataDirectory := resetEmbeddedResourcesForTest(t)
 	tests := []struct {
 		name string
 		data []byte
@@ -386,8 +720,7 @@ func TestEmbeddedArchiveHashesAndDecompression(t *testing.T) {
 		})
 	}
 
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	if numAdsResources != 10 || numBmpResources != 117 || numPalResources != 1 || numScrResources != 10 || numTtmResources != 41 {
 		t.Fatalf("parsed resource counts ADS=%d BMP=%d PAL=%d SCR=%d TTM=%d", numAdsResources, numBmpResources, numPalResources, numScrResources, numTtmResources)
 	}
@@ -414,6 +747,64 @@ func TestEmbeddedArchiveHashesAndDecompression(t *testing.T) {
 		if len(resource.UncompressedData) != int(resource.UncompressedSize) {
 			t.Errorf("%s decompressed to %d bytes, want %d", resource.ResName, len(resource.UncompressedData), resource.UncompressedSize)
 		}
+	}
+}
+
+func TestValidateDataDirectory(t *testing.T) {
+	dataDirectory := testDataDirectory(t)
+	if err := validateDataDirectory(dataDirectory); err != nil {
+		t.Fatalf("selected test data directory is invalid: %v", err)
+	}
+
+	empty := t.TempDir()
+	if err := validateDataDirectory(empty); err == nil || !strings.Contains(err.Error(), "RESOURCE.MAP") {
+		t.Fatalf("empty data directory error = %v, want RESOURCE.MAP failure", err)
+	}
+
+	corrupt := t.TempDir()
+	if err := os.WriteFile(filepath.Join(corrupt, "RESOURCE.MAP"), []byte("not a resource map"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(corrupt, "RESOURCE.001"), []byte("not a resource archive"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateDataDirectory(corrupt); err == nil || !strings.Contains(err.Error(), "MD5") {
+		t.Fatalf("corrupt data directory error = %v, want MD5 failure", err)
+	}
+}
+
+func TestCompactMiddle(t *testing.T) {
+	if got := compactMiddle("E:\\ai\\Johnny\\scrantic", 80); got != "E:\\ai\\Johnny\\scrantic" {
+		t.Fatalf("short path changed to %q", got)
+	}
+	got := compactMiddle("E:\\a-very-long-folder-name\\another-long-folder\\scrantic", 24)
+	if len([]rune(got)) != 24 || !strings.Contains(got, "...") || !strings.HasPrefix(got, "E:\\") || !strings.HasSuffix(got, "scrantic") {
+		t.Fatalf("compacted path = %q", got)
+	}
+}
+
+func TestChooseDefaultDataDirectory(t *testing.T) {
+	root := t.TempDir()
+	executablePath := filepath.Join(root, "JohnnyProject", "build", "JohnnyCastaway.exe")
+	workingDirectory := filepath.Join(root, "JohnnyProject")
+	besideExecutable := filepath.Join(root, "JohnnyProject", "build", "scrantic")
+	workspaceSibling := filepath.Join(root, "scrantic")
+
+	validDirectory := workspaceSibling
+	validator := func(directory string) bool {
+		return filepath.Clean(directory) == filepath.Clean(validDirectory)
+	}
+	if got := chooseDefaultDataDirectory(executablePath, workingDirectory, validator); got != filepath.Clean(workspaceSibling) {
+		t.Fatalf("development scrantic directory = %q, want %q", got, filepath.Clean(workspaceSibling))
+	}
+
+	validDirectory = besideExecutable
+	if got := chooseDefaultDataDirectory(executablePath, workingDirectory, validator); got != filepath.Clean(besideExecutable) {
+		t.Fatalf("portable scrantic directory = %q, want %q", got, filepath.Clean(besideExecutable))
+	}
+
+	if got := chooseDefaultDataDirectory(executablePath, workingDirectory, func(string) bool { return false }); got != filepath.Clean(besideExecutable) {
+		t.Fatalf("missing-data fallback = %q, want %q", got, filepath.Clean(besideExecutable))
 	}
 }
 
@@ -481,6 +872,7 @@ func TestPersistentSettingsConfigRoundTrip(t *testing.T) {
 		Monitor:          2,
 		FastCRTSharpness: 3,
 		ShowPerformance:  true,
+		DataDirectory:    "E:\\Johnny\\scrantic",
 	}
 	var got TConfig
 	for _, line := range strings.Split(strings.TrimSpace(cfgFormat(&want)), "\n") {
@@ -490,6 +882,18 @@ func TestPersistentSettingsConfigRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("config round trip = %#v, want %#v", got, want)
+	}
+	formatted := cfgFormat(&want)
+	if !strings.Contains(formatted, "[Settings]") || !strings.HasPrefix(formatted, "; Johnny Castaway") {
+		t.Fatalf("settings are not formatted as a documented INI file:\n%s", formatted)
+	}
+}
+
+func TestPortableConfigPathIsBesideExecutable(t *testing.T) {
+	executable := filepath.Join("E:\\Games", "Johnny Castaway", "JohnnyCastaway.exe")
+	want := filepath.Join("E:\\Games", "Johnny Castaway", "JohnnyCastaway.ini")
+	if got := configPathBesideExecutable(executable); got != want {
+		t.Fatalf("portable config path = %q, want %q", got, want)
 	}
 }
 
@@ -537,11 +941,17 @@ func TestCRTFilterMigrationAndLabels(t *testing.T) {
 	if got := parseCRTFilter("fast", false); got != crtFast {
 		t.Fatalf("CRT mode = %q, want fast", got)
 	}
+	if got := parseCRTFilter("hdr", false); got != crtHDR {
+		t.Fatalf("HDR mode = %q, want hdr", got)
+	}
 	if got := parseCRTFilter("invalid", false); got != crtOff {
 		t.Fatalf("invalid CRT mode = %q, want off", got)
 	}
 	if crtLottes.label() != "Lottes" {
 		t.Fatalf("Lottes label = %q", crtLottes.label())
+	}
+	if crtHDR.label() != "HDR Pop" {
+		t.Fatalf("HDR label = %q", crtHDR.label())
 	}
 }
 
@@ -578,10 +988,16 @@ func TestPerformanceImpactAndCapacity(t *testing.T) {
 			t.Errorf("impact at %.1f ms = %q, want %q", test.ms, got, test.want)
 		}
 	}
+	originalFilter := crtFilterMode
+	t.Cleanup(func() { crtFilterMode = originalFilter })
+	crtFilterMode = crtHDR
+	if got := performanceExpectedImpact(); got != "Moderate" {
+		t.Fatalf("HDR Pop expected GPU impact = %q, want Moderate", got)
+	}
 }
 
 func TestPerformanceBenchmarkModeOrder(t *testing.T) {
-	want := []crtFilter{crtOff, crtLightweight, crtFast, crtLottes}
+	want := []crtFilter{crtOff, crtLightweight, crtFast, crtHDR, crtLottes}
 	if !reflect.DeepEqual(performanceBenchmarkModes, want) {
 		t.Fatalf("benchmark modes = %#v, want %#v", performanceBenchmarkModes, want)
 	}
@@ -635,6 +1051,139 @@ func TestScreensaverFooterOpacity(t *testing.T) {
 	}
 }
 
+func TestInformationalUIActivityAndWake(t *testing.T) {
+	originalLastActivity := uiLastActivity
+	originalPreviousMouse := uiPreviousMouse
+	originalMouseInitialized := uiMouseInitialized
+	originalFooterStarted := menuFooterStarted
+	t.Cleanup(func() {
+		uiLastActivity = originalLastActivity
+		uiPreviousMouse = originalPreviousMouse
+		uiMouseInitialized = originalMouseInitialized
+		menuFooterStarted = originalFooterStarted
+	})
+
+	start := rl.NewVector2(100, 100)
+	uiInitializeActivity(20, start)
+	if got := informationalUIOpacity(28); got != 1 {
+		t.Fatalf("opacity after eight idle seconds = %v, want 1", got)
+	}
+	if got := informationalUIOpacity(29); got != 0.5 {
+		t.Fatalf("opacity during idle fade = %v, want 0.5", got)
+	}
+	if got := informationalUIOpacity(30); got != 0 {
+		t.Fatalf("opacity after ten idle seconds = %v, want 0", got)
+	}
+	if uiObserveActivity(31, start, false, false) {
+		t.Fatal("unchanged input was treated as activity")
+	}
+	if !uiObserveActivity(32, rl.NewVector2(101, 100), false, false) {
+		t.Fatal("mouse movement did not wake informational UI")
+	}
+	if got := informationalUIOpacity(32); got != 1 {
+		t.Fatalf("opacity after mouse wake = %v, want 1", got)
+	}
+	if !uiObserveActivity(43, rl.NewVector2(101, 100), true, false) {
+		t.Fatal("mouse button did not wake informational UI")
+	}
+	if !uiObserveActivity(54, rl.NewVector2(101, 100), false, true) {
+		t.Fatal("keyboard input did not wake informational UI")
+	}
+	if menuFooterStarted != 54 {
+		t.Fatalf("footer wake time = %v, want 54", menuFooterStarted)
+	}
+}
+
+func TestShortcutDockShowsPrimaryControls(t *testing.T) {
+	keys := func(items []shortcutDockItem) map[string]bool {
+		result := make(map[string]bool, len(items))
+		for _, item := range items {
+			result[item.key] = true
+		}
+		return result
+	}
+
+	desktop := keys(shortcutDockItems(false))
+	for _, key := range []string{"F1", "F2", "F3", "F4", "F5", "F7", "F8", "F9", "F10", "F12", "Space", "F", "D", "N", "T", "H", "↑ ↓", "Enter", "Esc ×2"} {
+		if !desktop[key] {
+			t.Errorf("desktop shortcut dock is missing %q", key)
+		}
+	}
+	screenSaver := keys(shortcutDockItems(true))
+	if screenSaver["F"] {
+		t.Fatal("screensaver shortcut dock advertises unavailable fullscreen control")
+	}
+	if len(screenSaver) != len(desktop)-1 {
+		t.Fatalf("screensaver shortcut count = %d, desktop = %d", len(screenSaver), len(desktop))
+	}
+}
+
+func TestPlaybackPauseStateAndLabel(t *testing.T) {
+	originalPaused := playbackPaused
+	originalAudioReady := audioReady
+	originalStatus := menuStatusText
+	t.Cleanup(func() {
+		playbackPaused = originalPaused
+		audioReady = originalAudioReady
+		menuStatusText = originalStatus
+	})
+	audioReady = false
+	setPlaybackPaused(true)
+	if !playbackPaused || pauseShortcutLabel(playbackPaused) != "Resume" {
+		t.Fatalf("paused state = %t, label = %q", playbackPaused, pauseShortcutLabel(playbackPaused))
+	}
+	setPlaybackPaused(false)
+	if playbackPaused || pauseShortcutLabel(playbackPaused) != "Pause" {
+		t.Fatalf("resumed state = %t, label = %q", playbackPaused, pauseShortcutLabel(playbackPaused))
+	}
+}
+
+func TestScreenshotFilename(t *testing.T) {
+	when := time.Date(2026, time.July, 17, 19, 45, 12, 345000000, time.UTC)
+	if got, want := screenshotFilename(when), "Johnny-Castaway-20260717-194512.345.png"; got != want {
+		t.Fatalf("screenshot filename = %q, want %q", got, want)
+	}
+}
+
+func TestPNGMetadataRoundTrip(t *testing.T) {
+	var source bytes.Buffer
+	imageData := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	imageData.Set(0, 0, color.RGBA{R: 12, G: 34, B: 56, A: 255})
+	if err := png.Encode(&source, imageData); err != nil {
+		t.Fatal(err)
+	}
+	tags := []pngTextTag{
+		{key: "Display Filter", value: "HDR Pop"},
+		{key: "Image Scaling", value: "Scale2x"},
+		{key: "Aspect Mode", value: "Fit 4:3"},
+	}
+	annotated, err := annotatePNG(source.Bytes(), tags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := png.Decode(bytes.NewReader(annotated)); err != nil {
+		t.Fatalf("annotated PNG no longer decodes: %v", err)
+	}
+	metadata, err := pngTextMetadata(annotated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tag := range tags {
+		if got := metadata[tag.key]; got != tag.value {
+			t.Errorf("metadata %q = %q, want %q", tag.key, got, tag.value)
+		}
+	}
+}
+
+func TestPNGMetadataRejectsInvalidInput(t *testing.T) {
+	if _, err := annotatePNG([]byte("not a png"), []pngTextTag{{key: "Title", value: "Johnny"}}); err == nil {
+		t.Fatal("invalid PNG was accepted")
+	}
+	if _, err := makePNGTextChunk(pngTextTag{key: "", value: "Johnny"}); err == nil {
+		t.Fatal("empty PNG metadata key was accepted")
+	}
+}
+
 func TestDisplayViewportAt32By9Resolutions(t *testing.T) {
 	tests := []struct {
 		width, height       float32
@@ -670,6 +1219,23 @@ func TestMonitorSelectionAnd32By9Detection(t *testing.T) {
 	}
 }
 
+func TestDefaultWindowedSize(t *testing.T) {
+	tests := []struct {
+		monitorWidth, monitorHeight int
+		wantWidth, wantHeight       int
+	}{
+		{monitorWidth: 1920, monitorHeight: 1080, wantWidth: 960, wantHeight: 720},
+		{monitorWidth: 800, monitorHeight: 600, wantWidth: 800, wantHeight: 600},
+		{monitorWidth: 5120, monitorHeight: 1440, wantWidth: 960, wantHeight: 720},
+	}
+	for _, test := range tests {
+		width, height := defaultWindowedSize(test.monitorWidth, test.monitorHeight)
+		if width != test.wantWidth || height != test.wantHeight {
+			t.Errorf("defaultWindowedSize(%d, %d) = (%d, %d), want (%d, %d)", test.monitorWidth, test.monitorHeight, width, height, test.wantWidth, test.wantHeight)
+		}
+	}
+}
+
 func TestDecodeADSScript(t *testing.T) {
 	data := make([]byte, 0, 10)
 	data = binary.LittleEndian.AppendUint16(data, 7)
@@ -694,8 +1260,8 @@ func TestDecodeADSScript(t *testing.T) {
 }
 
 func TestDecodeEveryEmbeddedADSScript(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	for index := 0; index < numAdsResources; index++ {
 		resource := &adsResources[index]
 		lines := decodeADSScript(resource.UncompressedData)
@@ -717,8 +1283,8 @@ func TestDecodeEveryEmbeddedADSScript(t *testing.T) {
 }
 
 func TestEmbeddedADSConditionInventory(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	conditionCount := 0
 	for index := 0; index < numAdsResources; index++ {
 		resource := &adsResources[index]
@@ -747,8 +1313,8 @@ func TestEmbeddedADSConditionInventory(t *testing.T) {
 }
 
 func TestEmbeddedADSLocalControlInventory(t *testing.T) {
-	resetEmbeddedResourcesForTest(t)
-	parseResourceFiles("assets/RESOURCE.MAP")
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
 	found := 0
 	for index := 0; index < numAdsResources; index++ {
 		resource := &adsResources[index]

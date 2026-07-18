@@ -1,10 +1,24 @@
 param(
-    [string]$Artifact = (Join-Path $PSScriptRoot 'JohnnyCastaway-x86.scr'),
-    [string]$DataDirectory = (Join-Path $PSScriptRoot '..\assets')
+    [string]$Artifact = (Join-Path $PSScriptRoot 'JohnnyCastaway.scr'),
+    [string]$DataDirectory = ''
 )
 
 $ErrorActionPreference = 'Stop'
 $screensaverPath = (Resolve-Path -LiteralPath $Artifact).Path
+$projectRoot = Split-Path -Parent $PSScriptRoot
+if (!$DataDirectory) {
+    $DataDirectory = @(
+        (Join-Path $PSScriptRoot 'scrantic'),
+        (Join-Path $projectRoot 'scrantic'),
+        (Join-Path $projectRoot '..\scrantic')
+    ) | Where-Object {
+        (Test-Path -LiteralPath (Join-Path $_ 'RESOURCE.MAP') -PathType Leaf) -and
+        (Test-Path -LiteralPath (Join-Path $_ 'RESOURCE.001') -PathType Leaf)
+    } | Select-Object -First 1
+}
+if (!$DataDirectory) {
+    throw 'No scrantic data folder was found; pass -DataDirectory explicitly'
+}
 $dataPath = (Resolve-Path -LiteralPath $DataDirectory).Path
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -56,8 +70,8 @@ function Stop-JohnnyProcess {
     $Process.Dispose()
 }
 
-if (![Environment]::Is64BitOperatingSystem) {
-    throw 'WOW64 QA requires a 64-bit Windows host'
+if (![Environment]::Is64BitOperatingSystem -or ![Environment]::Is64BitProcess) {
+    throw 'Native screensaver QA requires a 64-bit Windows host and PowerShell process'
 }
 
 $common = "--mute --data-dir `"$dataPath`""

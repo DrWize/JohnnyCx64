@@ -1,4 +1,4 @@
-name: Windows x64
+name: Windows 11 x64
 
 on:
   push:
@@ -36,7 +36,7 @@ jobs:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
         run: build\test.bat
 
-      - name: Build Windows x64 application
+      - name: Build native Windows 11 x64 application and screensaver
         shell: cmd
         env:
           MSYS2_ROOT: ${{ steps.msys2.outputs.msys2-location }}
@@ -45,16 +45,20 @@ jobs:
       - name: Verify build architecture
         shell: pwsh
         run: |
-          $output = & go version -m build\JohnnyCastaway-x64.exe 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 0 -or $output -notmatch 'GOOS=windows' -or $output -notmatch 'GOARCH=amd64') {
-            throw "Unexpected executable metadata:`n$output"
+          foreach ($artifact in @('build\JohnnyCastaway.exe', 'build\JohnnyCastaway.scr')) {
+            $output = & go version -m $artifact 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0 -or $output -notmatch 'GOOS=windows' -or $output -notmatch 'GOARCH=amd64') {
+              throw "Unexpected metadata for ${artifact}:`n$output"
+            }
+            $output
           }
-          $output
 
-      - name: Upload executable
+      - name: Upload native x64 artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: JohnnyCastaway-Windows-x64
-          path: build/JohnnyCastaway-x64.exe
+          name: JohnnyCastaway-Windows-11-x64
+          path: |
+            build/JohnnyCastaway.exe
+            build/JohnnyCastaway.scr
           if-no-files-found: error
           retention-days: 14

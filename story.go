@@ -9,6 +9,7 @@ var (
 	storyCurrentDay       int = 1
 	storyMode                 = storyPlaybackRandom
 	storySequentialCursor     = 0
+	storySkipIntroOnce        = false
 )
 
 type storyPlaybackMode int
@@ -102,11 +103,10 @@ func storyUpdateCurrentDay() {
 }
 
 func storyCalculateIslandFromDateAndTime() {
-	// Night ?
-	hour := getHour()
-	if hour < 6 || hour >= 18 {
-		islandState.night = 1
-	}
+	// A manual Settings-panel preview overrides the clock until the cycle returns to
+	// Automatic. Always assign the state so a previous night cannot leak into
+	// a later daytime sequence.
+	islandState.night = storyNightForHour(getHour(), islandDayNightOverride)
 
 	// Holidays ? A manual H-key preview overrides the calendar until the cycle
 	// returns to Automatic.
@@ -114,6 +114,16 @@ func storyCalculateIslandFromDateAndTime() {
 	if islandHolidayOverride != -1 {
 		islandState.holiday = islandHolidayOverride
 	}
+}
+
+func storyNightForHour(hour, override int) int {
+	if override == 0 || override == 1 {
+		return override
+	}
+	if hour < 6 || hour >= 18 {
+		return 1
+	}
+	return 0
 }
 
 func storyHolidayForCurrentDate() int {
@@ -196,7 +206,11 @@ func storyPlay() {
 	)
 
 	adsInit()
-	adsPlayIntro()
+	if storySkipIntroOnce {
+		storySkipIntroOnce = false
+	} else {
+		adsPlayIntro()
+	}
 
 	for {
 		storyUpdateCurrentDay()
@@ -244,8 +258,7 @@ func storyPlay() {
 				if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
 					xOffset = 272
 				}
-				ttmDx = islandState.xPos + xOffset
-				ttmDy = islandState.yPos
+				ttmFollowIslandPlacement(xOffset)
 
 				if scene.dayNo != 0 {
 					soundPlay(17)
@@ -268,8 +281,7 @@ func storyPlay() {
 			if finalScene.flags&LEFT_ISLAND == LEFT_ISLAND {
 				xOffset = 272
 			}
-			ttmDx = islandState.xPos + xOffset
-			ttmDy = islandState.yPos
+			ttmFollowIslandPlacement(xOffset)
 		} else {
 			ttmDx = 0
 			ttmDy = 0

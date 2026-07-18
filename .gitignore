@@ -6,9 +6,14 @@ original_c
 assets_old
 inspect
 resource_windows_*.syso
-/build/JohnnyCastaway-x64.exe
-/build/JohnnyCastaway-x86.scr
+/build/JohnnyCastaway.exe
+/build/JohnnyCastaway.scr
+/build/JohnnyCastaway.ini
 /build/history/
+/build/screenshot*.png
+/build/scrantic/
+/scrantic/*
+!/scrantic/Johnny-Castaway-Original-Data.sfv
 /assets/RESOURCE.MAP
 /assets/RESOURCE.001
 /resources/*.wav
