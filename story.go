@@ -258,8 +258,7 @@ func storyPlay() {
 				if scene.flags&LEFT_ISLAND == LEFT_ISLAND {
 					xOffset = 272
 				}
-				ttmDx = islandState.xPos + xOffset
-				ttmDy = islandState.yPos
+				ttmFollowIslandPlacement(xOffset)
 
 				if scene.dayNo != 0 {
 					soundPlay(17)
@@ -282,8 +281,7 @@ func storyPlay() {
 			if finalScene.flags&LEFT_ISLAND == LEFT_ISLAND {
 				xOffset = 272
 			}
-			ttmDx = islandState.xPos + xOffset
-			ttmDy = islandState.yPos
+			ttmFollowIslandPlacement(xOffset)
 		} else {
 			ttmDx = 0
 			ttmDy = 0

@@ -5,6 +5,23 @@ var (
 	ttmDy = 0
 )
 
+// ttmFollowIslandPlacement keeps scene-owned drawing aligned with the island.
+// Direct TTM selection must replace any temporary left-island correction left
+// by the previous story scene.
+func ttmFollowIslandPlacement(extraX int) {
+	ttmDx = islandState.xPos + extraX
+	ttmDy = islandState.yPos
+}
+
+func ttmUseStandalonePlacement() {
+	// A directly selected TTM loads its own fixed background rather than the
+	// randomized Full Story island. Reset both origins so its scene and holiday
+	// layer follow that newly loaded background.
+	islandState.xPos = 0
+	islandState.yPos = 0
+	ttmFollowIslandPlacement(0)
+}
+
 func ttmFindPreviousTag(ttmSlot *TTtmSlot, offset uint32) uint32 {
 	var result uint32 = 0
 	i := 0

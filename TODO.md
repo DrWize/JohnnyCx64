@@ -148,6 +148,10 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
 
 ## Everything fixed and completed
 
+- [x] Kept story-driven TTMs aligned with randomized and left-island placement,
+  while resetting directly selected TTMs to the fixed origin used by their new
+  background. This prevents a selected scene from inheriting the previous
+  island coordinates; added normal, left-island, and standalone regression tests.
 - [x] Added `scrantic/Johnny-Castaway-Original-Data.sfv` with the verified
   CRC-32 values for both canonical archives. Git tracks only the SFV in that
   folder and continues to ignore all original game data.

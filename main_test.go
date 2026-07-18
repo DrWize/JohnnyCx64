@@ -326,6 +326,32 @@ func TestWalkingTreeOcclusionIsFixedAndOrdered(t *testing.T) {
 	}
 }
 
+func TestTTMPlacementFollowsIsland(t *testing.T) {
+	oldIsland, oldDX, oldDY := islandState, ttmDx, ttmDy
+	t.Cleanup(func() {
+		islandState, ttmDx, ttmDy = oldIsland, oldDX, oldDY
+	})
+
+	islandState.xPos = -137
+	islandState.yPos = 42
+	ttmDx, ttmDy = 999, 999 // Simulate placement inherited from prior content.
+
+	ttmFollowIslandPlacement(0)
+	if ttmDx != -137 || ttmDy != 42 {
+		t.Fatalf("selected TTM placement = (%d,%d), want current island (-137,42)", ttmDx, ttmDy)
+	}
+
+	ttmFollowIslandPlacement(272)
+	if ttmDx != 135 || ttmDy != 42 {
+		t.Fatalf("left-island scene placement = (%d,%d), want (135,42)", ttmDx, ttmDy)
+	}
+
+	ttmUseStandalonePlacement()
+	if islandState.xPos != 0 || islandState.yPos != 0 || ttmDx != 0 || ttmDy != 0 {
+		t.Fatalf("selected standalone TTM kept placement: island=(%d,%d), TTM=(%d,%d)", islandState.xPos, islandState.yPos, ttmDx, ttmDy)
+	}
+}
+
 func TestNextTTMSceneIndex(t *testing.T) {
 	slot := &TTtmSlot{
 		dataSize: 100,
