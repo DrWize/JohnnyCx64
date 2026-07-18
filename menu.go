@@ -20,8 +20,8 @@ type shortcutDockItem struct {
 }
 
 const (
-	projectGitHubURL   = "https://github.com/DrWize/JohnnyCx86"
-	projectGitHubLabel = "github.com/DrWize/JohnnyCx86"
+	projectGitHubURL   = "https://github.com/DrWize/JohnnyCx64"
+	projectGitHubLabel = "github.com/DrWize/JohnnyCx64"
 )
 
 var (

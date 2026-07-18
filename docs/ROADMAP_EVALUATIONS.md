@@ -67,7 +67,7 @@ compile proof established that the Go/Raylib code could be built on Ubuntu with
 a small platform boundary. It did not establish runtime display, audio,
 packaging, idle detection, or XScreenSaver support.
 
-Decision: keep JohnnyCx86 Windows-only. Remove the Linux platform shim and
+Decision: keep JohnnyCx64 Windows-only. Remove the Linux platform shim and
 Ubuntu CI workflow so a compile-only artifact does not imply support or consume
 project build time. Reconsider cross-platform work only with a complete runtime,
 screensaver integration, packaging, and QA plan.

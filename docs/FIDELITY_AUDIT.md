@@ -36,7 +36,7 @@ Primary references:
 
 xBaK uses fixed-size buffers with guarded copy, seek, and skip operations. It is
 useful historical context, but it targets a broader Betrayal at Krondor resource
-stack rather than this exact Johnny Castaway archive contract. JohnnyCx86 already
+stack rather than this exact Johnny Castaway archive contract. JohnnyCx64 already
 adds constraints that are more directly useful here:
 
 - only the two verified archive hashes are accepted;
@@ -72,5 +72,5 @@ resource archives and renders representative ADS scenes, so it remains useful
 for palette, resource-decoding, and basic composition checks. It is not a
 full-story behavior oracle: its current `Story.play()` chooses one random scene,
 and its own roadmap still lists full-story sequencing, moving clouds, waves,
-day/night, and tides as future work. No JohnnyCx86 behavior should be changed
+day/night, and tides as future work. No JohnnyCx64 behavior should be changed
 solely to match an omission in that viewer.

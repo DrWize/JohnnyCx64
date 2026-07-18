@@ -1,6 +1,6 @@
 # Attribution and data notice
 
-JohnnyCx86 is derived from Ralph Caraveo's Go/Raylib port at
+JohnnyCx64 is derived from Ralph Caraveo's Go/Raylib port at
 `deckarep/Johnny-Castaway-2026-Public`, which is derived from `jc_reborn`.
 Their contributions and Git history are acknowledged in the README.
 

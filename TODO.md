@@ -167,7 +167,7 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
 - [x] Verified native x64 `/c`, `/s`, `/p`, and preview-host shutdown behavior,
   and completed the final local renderer, configuration, integration, QA, and
   source/data-boundary review.
-- [x] Added a clickable `github.com/DrWize/JohnnyCx86` link to Settings.
+- [x] Added a clickable `github.com/DrWize/JohnnyCx64` link to Settings.
 - [x] Added a sleek responsive shortcut dock containing the primary playback
   and display controls.
 - [x] Auto-hide nonessential shortcut and performance information after eight

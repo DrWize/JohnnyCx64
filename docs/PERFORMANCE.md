@@ -1,6 +1,6 @@
 # Display performance matrix
 
-This document records physical-output measurements for JohnnyCx86 display and
+This document records physical-output measurements for JohnnyCx64 display and
 display-filter modes. Results are hardware-specific and are not substitutes for testing on
 lower-powered GPUs.
 
