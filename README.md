@@ -7,18 +7,42 @@ Git history includes deckarep's work through merge commit `ba5ae61`; this Window
 branch extends that baseline with stability, diagnostics, display, and packaging
 work. Both upstream projects must retain clear attribution.
 
-### How it's built
+## At a glance
+
+| Area | Details |
+| --- | --- |
+| Platform | Windows 11 x64 |
+| Outputs | `JohnnyCastaway.exe` and `JohnnyCastaway.scr` |
+| Engine | Go with Raylib |
+| Original data | Supplied locally by the user and verified by hash |
+| Settings | Human-readable `JohnnyCastaway.ini` |
+
+## Contents
+
+* [How it works](#how-it-works)
+* [Quick start](#quick-start)
+* [Controls and settings](#controls-and-settings)
+* [Display and performance](#display-and-performance)
+* [Testing and diagnostics](#testing-and-diagnostics)
+* [Data files and copyright](#data-files-and-copyright)
+* [Project references](#project-references)
+* [Project status](#project-status)
+* [License](#license)
+
+## How it works
 
 The Windows application is written in Go and uses Raylib for graphics and
 audio. Sierra/Dynamix archives and sounds are loaded from a user-selected local
 folder and are never embedded in the executable or repository. See
-[Data-file and copyright policy](#data-file-and-copyright-policy).
+[Data files and copyright](#data-files-and-copyright).
 This project targets 64-bit Windows 11 only. macOS, Linux, WebAssembly, and
 legacy 32-bit Windows were deliberately deferred or removed so release work
 stays focused on one native x64 application and screensaver. See
 [the roadmap evaluations](docs/ROADMAP_EVALUATIONS.md).
 
-### Native Windows 11 x64 builds
+## Quick start
+
+### Build for Windows 11 x64
 
 Run `build\build.bat` from a Command Prompt to create
 `build\JohnnyCastaway.exe` and `build\JohnnyCastaway.scr`, plus timestamped
@@ -32,6 +56,8 @@ Set `MSYS2_ROOT` before running the script when MSYS2 is installed
 somewhere other than `C:\msys64`; the CI workflow uses this portable path.
 The single Windows 11 CI job tests the project, verifies `GOARCH=amd64` on both
 outputs, and uploads the `.exe` and `.scr` together.
+
+### Screensaver modes
 
 The `.scr` implements the Windows screensaver command contract:
 
@@ -51,11 +77,15 @@ beside the binary, beside its containing project directory, or beside the
 current working directory. This lets development builds find a nearby verified
 `scrantic` directory automatically.
 
+### Local data and build folders
+
 Local development uses the following directories when applicable:
 
 * `scrantic/` - default local folder for user-supplied archives and sounds. Git
   tracks only `Johnny-Castaway-Original-Data.sfv`; all game data remains ignored
 * `build/` - build scripts, Windows manifest/version/icon resources, and output
+
+### Command-line options
 
 Windows command-line options:
 
@@ -75,6 +105,10 @@ Windows command-line options:
 * `--data-dir PATH` - folder containing the original `RESOURCE.MAP`,
   `RESOURCE.001`, and any optional `sound*.wav` files; this overrides the
   `scrantic` default and the selected path persists
+
+## Controls and settings
+
+### Everyday controls
 
 Double-click `build\JohnnyCastaway.exe` to test the finished application.
 Press `F1` for the settings and complete key guide. Press `Esc` twice within
@@ -103,6 +137,8 @@ pause the entire scene, including animation timers and active sound effects.
 Press `Space` again to resume without consuming the time spent paused. Runtime
 Log keeps its existing Space shortcut for pausing trace capture.
 
+### Persistent settings
+
 Display, playback, audio, monitor, and data-folder choices persist in the
 human-readable `JohnnyCastaway.ini` beside the running `.exe` or `.scr`. The
 file is created automatically on first successful launch and can be edited
@@ -111,6 +147,9 @@ home-folder settings migrate automatically. If the executable is installed in
 a protected directory such as `System32`, settings fall back to
 `LocalAppData\JohnnyCastaway\JohnnyCastaway.ini` so screensaver preferences can
 still be saved without administrator rights.
+
+### Menus and scene collections
+
 The sleek shortcut dock at the bottom shows every primary playback and display
 control in both desktop and screensaver modes, including the current CRT,
 scene-order, scaling, and sharpness selections. It wraps cleanly on narrower
@@ -129,10 +168,14 @@ borderless fullscreen surface no longer closes, flashes the desktop, or repeats
 the startup fade when switching between Full Story and individual TTMs. Only
 content-owned scene layers, sprite slots, and currently playing sounds reset.
 
+### Runtime diagnostics
+
 The runtime diagnostics panel combines decoded TTM and ADS instructions and
 offers a complete ADS script view with the executing condition/instruction
 highlighted. Its visible controls provide search, source filters, capture pause,
 scrolling, copy, timestamped export, and history clearing.
+
+### Holiday and sky previews
 
 The settings include a holiday preview that cycles through `Halloween`,
 `St. Patrick`, `Christmas`, `New Year`, and `Automatic (calendar)` without
@@ -147,6 +190,10 @@ title screen is skipped for preview changes. Automatic mode uses night before
 06:00 and from 18:00 onward. Clouds move independently across either background
 and wrap after leaving the native 640-pixel canvas. `D` provides the same
 Day/Night/Automatic cycle without opening Settings.
+
+## Display and performance
+
+### Scene order and image scaling
 
 The menu also contains live display-filter, scene-order, image-scaling, Fast CRT
 sharpness, performance-HUD, and shader-benchmark controls.
@@ -165,6 +212,8 @@ session takes precedence over the saved value; use `--fullscreen`, `--sound`, or
 `--fit` to reverse saved boolean choices. Screensaver launches remain fullscreen
 unless `--windowed` is explicitly supplied and do not overwrite the normal
 window preference.
+
+### CRT filters
 
 The `Lottes` setting is a Raylib GLSL 330 port of Timothy Lottes' public-domain
 single-pass CRT shader. It adds brightness-shaped scanlines, horizontal beam
@@ -190,6 +239,8 @@ an HDR-style SDR image for Windows HDR and the display to tone-map; it does not
 claim HDR10 output or emit HDR metadata. Compilation failure falls back safely
 and removes HDR Pop from the live filter cycle and benchmark for that run.
 
+### Performance HUD and benchmark
+
 Changing filter mode, scaling mode, or Fast CRT sharpness displays the performance
 HUD for ten seconds. `F8` pins it across sessions. It reports actual FPS against
 the 30 FPS target, CPU frame-submission time, percentage of the 33.3 ms CPU
@@ -210,12 +261,16 @@ See [the display performance matrix](docs/PERFORMANCE.md) for recorded physical
 output results, hardware details, limitations, and the remaining resolution
 gates.
 
+### Fullscreen and ultrawide displays
+
 Borderless fullscreen and screensaver modes use the selected monitor's native
 size and origin, including 5120x1440 and 7680x2160 Samsung Odyssey Neo G9-class
 32:9 displays. The default aspect-preserving mode centers the original 4:3
 artwork with opaque black pillarboxes; `--stretch` remains available when filling
 the entire panel is preferred. Multi-monitor placement and cursor hiding remain
 active in screensaver mode.
+
+### Screensaver interface
 
 In screensaver mode, the settings and runtime overlays remain interactive while
 the animation continues behind them. Menu navigation, runtime-log navigation,
@@ -235,6 +290,8 @@ next two, and wakes immediately on mouse movement, a mouse button, or keyboard
 input. Settings, Data Files, Runtime Log, and error/status messages remain
 visible and interactive independently of that idle timer.
 
+### Future display work
+
 CRT-Royale remains a future experimental option rather than a selectable mode.
 The maintained [reference preset](https://github.com/libretro/slang-shaders/blob/master/crt/crt-royale.slangp)
 uses 12 rendering passes and six mask LUTs; even
@@ -243,6 +300,10 @@ uses eight passes and three LUTs. Those libretro `.slangp` pipelines require a
 Raylib/OpenGL port and performance testing at 4K and dual-4K. The current
 scanline/vignette overlay remains the inexpensive, broadly compatible default.
 
+## Testing and diagnostics
+
+### Local testing
+
 Run `build\test.bat` from a Command Prompt to execute the automated regression
 suite with the same Go and MSYS2 CGO toolchain used by the x64 build. Run
 `powershell -ExecutionPolicy Bypass -File build\stability_sweep.ps1` for the
@@ -250,10 +311,14 @@ longer interactive sweep across every embedded TTM and Full Story. Both Windows
 QA scripts discover the same nearby `scrantic` convention as the binaries; use
 their `-DataDirectory` parameter to test another verified folder explicitly.
 
+### Windows x64 CI
+
 The `Windows x64` GitHub Actions workflow performs the same archive
 verification and regression suite on a Windows 2025 runner, installs the
 MinGW64 CGO toolchain, builds the GUI executable, verifies its Go metadata is
 `windows/amd64`, and uploads the executable as a 14-day workflow artifact.
+
+### Logs and rendering safeguards
 
 The application log in `%LOCALAPPDATA%\JohnnyCastaway` starts each session with
 the product version and build revision. At 1 MiB it rotates to
@@ -263,7 +328,7 @@ Original `.SCR` backgrounds shorter than 640x480 are padded to the full canvas
 using their dominant bottom-edge color. Source artwork is not stretched, and
 sprite coordinates remain aligned with the original scene.
 
-### Data-file and copyright policy
+## Data files and copyright
 
 The public source and its new Git history exclude the original archives, sounds,
 and generated executables. Local data paths are ignored by Git.
@@ -281,7 +346,8 @@ link to copies.
 
 For reference, the canonical archive hashes are:
 
-### Tested Files
+### Tested files and checksums
+
 * `RESOURCE.001` - `md5: 8bb6c99e9129806b5089a39d24228a36`
 * `RESOURCE.MAP` - `md5: 374e6d05c5e0acd88fb5af748948c899`
 
@@ -308,6 +374,7 @@ checked byte-for-byte. Its embedded `RESOURCE.MAP` and `RESOURCE.001` are the
 same files with the same hashes; it is not an alternate resource set.
 
 ### Resource types
+
 * `.BMP` = used for sprites (4bits per pixel, color indexed (16 color max))
 * `.SCR` = used for backgrounds (4bits per pixel, color indexed (16 color max))
 * `.ADS` = scene level orchestration (higher level)
@@ -330,7 +397,9 @@ missing sprite loads, allowing `FIRE.TTM` and full-story playback to continue
 without those visual effects. The separate fire-making sequence in
 `MJFIRE.TTM`, orchestrated by `BUILDING.ADS`, has all of its required resources.
 
-### Implementations and information points
+## Project references
+
+### Related implementations and information
 
 * [deckarep/Johnny-Castaway-2026-Public](https://github.com/deckarep/Johnny-Castaway-2026-Public)
   — direct upstream for this Go/Raylib branch. It supplies the original port
@@ -373,12 +442,12 @@ condition semantics are adapted here where Johnny's embedded scripts use them,
 including `DRAW_SCREEN`, AND/OR blocks, `IF_NOT_PLAYED`, asynchronous
 `IF_FINISHED`, and the one `WHILE_RUNNING` continuation in `ACTIVITY.ADS`.
 
-### Project status
+## Project status
 
 See [`TODO.md`](TODO.md) for the completed work, confirmed remaining problems,
 and the prioritized plan for the next development session.
 
-### License
+## License
 
 The engine source and modifications are distributed under GNU GPL version 3 or
 later; see [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md). This license does
