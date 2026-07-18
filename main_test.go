@@ -170,7 +170,7 @@ func TestStoryNightForHour(t *testing.T) {
 	}
 }
 
-func TestDayNightPreviewCycle(t *testing.T) {
+func TestDayNightKeyboardAndSettingsCycle(t *testing.T) {
 	oldOverride := islandDayNightOverride
 	oldNight := islandState.night
 	t.Cleanup(func() {
@@ -190,35 +190,30 @@ func TestDayNightPreviewCycle(t *testing.T) {
 	}
 }
 
-func TestDayNightToggle(t *testing.T) {
+func TestShortcutDockShowsCurrentSkyMode(t *testing.T) {
 	oldOverride := islandDayNightOverride
-	oldNight := islandState.night
-	t.Cleanup(func() {
-		islandDayNightOverride = oldOverride
-		islandState.night = oldNight
-	})
+	t.Cleanup(func() { islandDayNightOverride = oldOverride })
 
-	islandDayNightOverride = -1
-	islandState.night = 0
-	if got := islandToggleDayNight(); got != "Night" {
-		t.Fatalf("toggle from automatic day = %q, want Night", got)
+	tests := []struct {
+		override int
+		want     string
+	}{
+		{override: -1, want: "Sky Auto"},
+		{override: 0, want: "Sky Day"},
+		{override: 1, want: "Sky Night"},
 	}
-	if islandDayNightOverride != 1 || islandState.night != 1 {
-		t.Fatalf("night toggle state: override=%d night=%v", islandDayNightOverride, islandState.night)
-	}
-	if got := islandToggleDayNight(); got != "Day" {
-		t.Fatalf("toggle from night = %q, want Day", got)
-	}
-	if islandDayNightOverride != 0 || islandState.night != 0 {
-		t.Fatalf("day toggle state: override=%d night=%v", islandDayNightOverride, islandState.night)
-	}
-
-	// Automatic night should toggle to Day on the first key press rather than
-	// blindly selecting Night again.
-	islandDayNightOverride = -1
-	islandState.night = 1
-	if got := islandToggleDayNight(); got != "Day" {
-		t.Fatalf("toggle from automatic night = %q, want Day", got)
+	for _, test := range tests {
+		islandDayNightOverride = test.override
+		got := ""
+		for _, item := range shortcutDockItems(false) {
+			if item.key == "D" {
+				got = item.action
+				break
+			}
+		}
+		if got != test.want {
+			t.Errorf("D shortcut for override %d = %q, want %q", test.override, got, test.want)
+		}
 	}
 }
 

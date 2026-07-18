@@ -165,7 +165,7 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 		items = append(items, shortcutDockItem{key: "F", action: "Fullscreen"})
 	}
 	return append(items,
-		shortcutDockItem{key: "D", action: "Day/Night"},
+		shortcutDockItem{key: "D", action: "Sky " + islandDayNightShortLabel()},
 		shortcutDockItem{key: "N", action: "Next TTM"},
 		shortcutDockItem{key: "T", action: "Next scene"},
 		shortcutDockItem{key: "H", action: "Holiday"},
@@ -460,10 +460,6 @@ func menuCycleDayNightPreview() {
 	menuApplyDayNightPreview(islandCycleDayNight())
 }
 
-func menuToggleDayNightPreview() {
-	menuApplyDayNightPreview(islandToggleDayNight())
-}
-
 func menuApplyDayNightPreview(label string) {
 	menuSceneMessage = "Day/night preview: " + label
 	if currentContent == "" {
@@ -622,7 +618,7 @@ func menuUpdateAndDraw() {
 		menuRunNextTTM()
 	}
 	if rl.IsKeyPressed(rl.KeyD) && !traceVisible {
-		menuToggleDayNightPreview()
+		menuCycleDayNightPreview()
 	}
 	if rl.IsKeyPressed(rl.KeyT) {
 		menuRunNextScene()
@@ -657,8 +653,8 @@ func menuUpdateAndDraw() {
 	windowH := float32(rl.GetScreenHeight())
 	rl.DrawRectangle(0, 0, int32(windowW), int32(windowH), rl.Fade(rl.Black, 0.65))
 
-	panelW := min(float32(620), windowW-40)
-	panelH := min(float32(500), windowH-40)
+	panelW := min(float32(760), windowW-40)
+	panelH := min(float32(560), windowH-40)
 	panelX := (windowW - panelW) / 2
 	panelY := (windowH - panelH) / 2
 	panel := rl.NewRectangle(panelX, panelY, panelW, panelH)
@@ -673,8 +669,8 @@ func menuUpdateAndDraw() {
 	buildLabel := appVersionLabel()
 	buildWidth := rl.MeasureText(buildLabel, 15)
 	rl.DrawText(buildLabel, int32(panelX+panelW-24)-buildWidth, int32(panelY+26), 15, rl.Gray)
-	rl.DrawText("F1/Esc hide  F fullscreen  F2 filter  F3 order  F4 scaling  F5 log  F10 data", int32(panelX+24), int32(panelY+58), 14, rl.LightGray)
-	rl.DrawText("Up/Down choose  Enter run  Space pause  D day/night  N next TTM  T scene  H holiday  F7 sharp  F8 stats  F9 test", int32(panelX+24), int32(panelY+80), 14, rl.LightGray)
+	drawTextFitted("F1/Esc hide  F fullscreen  F2 filter  F3 order  F4 scaling  F5 log  F10 data", int32(panelX+24), int32(panelY+58), int32(panelW-48), 14, 11, rl.LightGray)
+	drawTextFitted("Up/Down choose  Enter run  Space pause  D sky mode  N next TTM  T scene  H holiday  F7 sharp  F8 stats  F9 test", int32(panelX+24), int32(panelY+80), int32(panelW-48), 14, 11, rl.LightGray)
 	if appSettings.screenSaver {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}
@@ -690,7 +686,7 @@ func menuUpdateAndDraw() {
 	drawTextFitted("Running: "+currentLabel, int32(panelX+24), int32(panelY+112+contentOffset), int32(panelW-48), 19, 14, rl.NewColor(150, 205, 255, 255))
 	if number, total, description, ok := currentTTMSceneInfo(); ok {
 		sceneText := fmt.Sprintf("Scene: %d/%d — %s", number, total, description)
-		rl.DrawText(sceneText, int32(panelX+24), int32(panelY+138+contentOffset), 17, rl.NewColor(175, 210, 180, 255))
+		drawTextFitted(sceneText, int32(panelX+24), int32(panelY+138+contentOffset), int32(panelW-48), 17, 13, rl.NewColor(175, 210, 180, 255))
 	}
 	rl.DrawText(fmt.Sprintf("Choose scene collection (%d/%d):", menuSelection+1, len(menuEntries)), int32(panelX+24), int32(panelY+170+contentOffset), 18, rl.LightGray)
 	drawTextFitted(selectedLabel, int32(panelX+24), int32(panelY+196+contentOffset), int32(panelW-48), 25, 17, rl.Gold)
@@ -699,7 +695,7 @@ func menuUpdateAndDraw() {
 		drawTextFitted(menuSceneMessage, int32(panelX+24), int32(panelY+250+contentOffset), int32(panelW-48), 16, 12, rl.LightGray)
 	}
 	guideY := panelY + panelH - 258
-	settingsPath := "Settings file: " + compactMiddle(cfgDisplayPath(), 72)
+	settingsPath := "Settings file: " + compactMiddle(cfgDisplayPath(), 92)
 	drawTextFitted(settingsPath, int32(panelX+24), int32(guideY), int32(panelW-48), 14, 11, rl.LightGray)
 	drawTextFitted("Filter impact: Off Minimal | Light Very low | Fast Low | HDR Moderate | Lottes High", int32(panelX+24), int32(guideY+22), int32(panelW-48), 14, 11, rl.Gold)
 	githubFontSize := int32(15)

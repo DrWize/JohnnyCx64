@@ -198,8 +198,11 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
   explicit `--data-dir` and a saved Data Files selection higher priority.
 - [x] Restored moving clouds with one-time sprite loading, reference-correct
   vertical placement, 1–2 pixel movement, wrapping, and regression coverage.
-- [x] Added the Settings `Sky` control for Day, Night, and Automatic; made `D`
-  toggle directly between Day and Night while preserving `N` for Next TTM.
+- [x] Added matching Settings `Sky` and `D` keyboard cycles for Day, Night, and
+  Automatic while preserving `N` for Next TTM.
+- [x] Expanded and reflowed the F1 Settings panel to prevent title, description,
+  path, and help-text overlap; made the lower shortcut dock show the live
+  `Sky Auto`, `Sky Day`, or `Sky Night` state.
 - [x] Fixed automatic day/night state so daytime clears a previous night state;
   automatic mode uses day from 06:00 through 17:59.
 - [x] Added clip-zone enforcement and regression tests for drawing operations.
