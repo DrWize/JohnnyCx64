@@ -402,6 +402,7 @@ func adsPlaySingleTtm(ttmName string) {
 	}
 	islandRefreshHolidayLayer()
 	ttmLoadTTM(&ttmSlots[0], ttmName)
+	ttmLoadStandaloneSpriteDependencies(&ttmSlots[0], ttmName)
 	adsAddScene(0, 0, 0)
 	ttmThreads[0].ip = 0
 

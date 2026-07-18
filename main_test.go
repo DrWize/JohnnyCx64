@@ -190,6 +190,12 @@ func TestDayNightKeyboardAndSettingsCycle(t *testing.T) {
 	}
 }
 
+func TestDayNightShortcutUsesCapturedKey(t *testing.T) {
+	if !menuKeyPressed(rl.KeyD, rl.KeyD) {
+		t.Fatal("captured D key should activate the day/night shortcut")
+	}
+}
+
 func TestShortcutDockShowsCurrentSkyMode(t *testing.T) {
 	oldOverride := islandDayNightOverride
 	t.Cleanup(func() { islandDayNightOverride = oldOverride })
@@ -541,6 +547,103 @@ func TestFireTTMMissingSpriteUsage(t *testing.T) {
 			t.Errorf("FIRE.TTM never draws %s", name)
 		}
 		t.Logf("%s draws=%d maxFrame=%d", name, missingDraws[name], maxFrame[name])
+	}
+}
+
+func TestLilliputianTTMSpriteUsage(t *testing.T) {
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
+
+	for _, resourceName := range []string{"GJGULIVR.TTM", "GJLILIPU.TTM"} {
+		t.Run(resourceName, func(t *testing.T) {
+			resource := findTTMResource(resourceName)
+			data := resource.UncompressedData
+			selectedSlot := uint16(0)
+			loaded := make(map[uint16]*TBMPResource)
+			loads := make(map[string]bool)
+			draws := 0
+			flippedDraws := 0
+			maxSprite := make(map[string]uint16)
+			for _, preload := range standaloneTTMSpritePreloads[resourceName] {
+				bmp, found := lookupBMPResource(preload.resource)
+				if !found {
+					t.Fatalf("standalone preload %s is missing", preload.resource)
+				}
+				loaded[preload.slot] = bmp
+				loads[preload.resource] = true
+			}
+
+			for offset := 0; offset+2 <= len(data); {
+				instructionOffset := offset
+				opcode := binary.LittleEndian.Uint16(data[offset:])
+				offset += 2
+				argCount := int(opcode & 0x000f)
+				if argCount == 0x0f {
+					start := offset
+					for offset < len(data) && data[offset] != 0 {
+						offset++
+					}
+					if offset >= len(data) {
+						t.Fatalf("unterminated string opcode %#04x at %#x", opcode, instructionOffset)
+					}
+					value := string(data[start:offset])
+					offset++
+					if offset%2 != 0 {
+						offset++
+					}
+					if opcode == 0xF02F {
+						bmp, found := lookupBMPResource(value)
+						if !found {
+							t.Errorf("LOAD_IMAGE %s into slot %d has no original BMP resource", value, selectedSlot)
+							delete(loaded, selectedSlot)
+						} else {
+							loaded[selectedSlot] = bmp
+							loads[value] = true
+						}
+					}
+					continue
+				}
+				if offset+argCount*2 > len(data) {
+					t.Fatalf("truncated opcode %#04x at %#x", opcode, instructionOffset)
+				}
+				args := make([]uint16, argCount)
+				for index := range args {
+					args[index] = binary.LittleEndian.Uint16(data[offset+index*2:])
+				}
+				offset += argCount * 2
+
+				if opcode == 0x1051 {
+					selectedSlot = args[0]
+				}
+				if opcode != 0xA504 && opcode != 0xA524 {
+					continue
+				}
+				draws++
+				if opcode == 0xA524 {
+					flippedDraws++
+				}
+				spriteNo, imageSlot := args[2], args[3]
+				bmp := loaded[imageSlot]
+				if bmp == nil {
+					t.Errorf("draw at %#x uses unloaded image slot %d sprite %d", instructionOffset, imageSlot, spriteNo)
+					continue
+				}
+				if spriteNo >= bmp.NumImages {
+					t.Errorf("draw at %#x uses %s sprite %d, but it has %d sprites", instructionOffset, bmp.ResName, spriteNo, bmp.NumImages)
+				}
+				if spriteNo > maxSprite[bmp.ResName] {
+					maxSprite[bmp.ResName] = spriteNo
+				}
+			}
+
+			if draws == 0 || len(loads) == 0 {
+				t.Fatalf("sprite audit found loads=%d draws=%d", len(loads), draws)
+			}
+			t.Logf("tags=%d image resources=%d draws=%d flipped=%d", resource.NumTags, len(loads), draws, flippedDraws)
+			for name, highest := range maxSprite {
+				t.Logf("%s highest referenced sprite=%d", name, highest)
+			}
+		})
 	}
 }
 

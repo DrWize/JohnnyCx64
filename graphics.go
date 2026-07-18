@@ -788,7 +788,7 @@ func grUpdateDisplay(
 			rl.DrawFPS(10, 10)
 		}
 
-		menuUpdateAndDraw()
+		menuUpdateAndDraw(queuedKey)
 		traceUpdateAndDraw()
 		handleDoubleEscape()
 

@@ -5,6 +5,30 @@ var (
 	ttmDy = 0
 )
 
+type standaloneTTMSpritePreload struct {
+	slot     uint16
+	resource string
+}
+
+// Some original TTM tags are continuations that expect sprite slots populated
+// by an earlier part of the story. Direct TTM playback has no earlier scene, so
+// seed only those documented dependencies before running or selecting tags.
+var standaloneTTMSpritePreloads = map[string][]standaloneTTMSpritePreload{
+	"GJGULIVR.TTM": {
+		{slot: 1, resource: "LILIPUTS.BMP"},
+	},
+	"GJLILIPU.TTM": {
+		{slot: 2, resource: "STNDLAY.BMP"},
+		{slot: 3, resource: "SLEEP.BMP"},
+	},
+}
+
+func ttmLoadStandaloneSpriteDependencies(ttmSlot *TTtmSlot, name string) {
+	for _, preload := range standaloneTTMSpritePreloads[name] {
+		grLoadBmp(ttmSlot, preload.slot, preload.resource)
+	}
+}
+
 // ttmFollowIslandPlacement keeps scene-owned drawing aligned with the island.
 // Direct TTM selection must replace any temporary left-island correction left
 // by the previous story scene.

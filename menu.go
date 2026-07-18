@@ -560,7 +560,11 @@ func drawTextFitted(text string, x, y int32, maxWidth int32, fontSize, minimumSi
 	rl.DrawText(text, x, y, fontSize, color)
 }
 
-func menuUpdateAndDraw() {
+func menuKeyPressed(key, queuedKey int32) bool {
+	return queuedKey == key || rl.IsKeyPressed(key)
+}
+
+func menuUpdateAndDraw(queuedKey int32) {
 	menuDrawStatus()
 	menuDrawPauseIndicator()
 	menuDrawShortcutDock()
@@ -617,7 +621,7 @@ func menuUpdateAndDraw() {
 	if rl.IsKeyPressed(rl.KeyN) {
 		menuRunNextTTM()
 	}
-	if rl.IsKeyPressed(rl.KeyD) && !traceVisible {
+	if menuKeyPressed(rl.KeyD, queuedKey) && !traceVisible {
 		menuCycleDayNightPreview()
 	}
 	if rl.IsKeyPressed(rl.KeyT) {
