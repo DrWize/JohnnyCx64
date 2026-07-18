@@ -24,9 +24,9 @@ Run `build\build.bat` from a Command Prompt to create
 `build\JohnnyCastaway.exe` and `build\JohnnyCastaway.scr`, plus timestamped
 copies under `build\history\`. Previous copies are retained so different builds
 can be tested side by side. The build requires 64-bit Go in
-`C:\Program Files\Go` and the MSYS2
-`mingw-w64-x86_64-gcc` toolchain in `C:\msys64\mingw64`. The script generates
-amd64 Windows resource objects and builds both files as native PE32+ GUI
+`C:\Program Files\Go` and the 64-bit MSYS2 MinGW GCC toolchain in
+`C:\msys64\mingw64`. The script generates amd64 Windows resource objects and
+builds both files as native PE32+ GUI
 programs. The application requires the user's original data folder at runtime.
 Set `MSYS2_ROOT` before running the script when MSYS2 is installed
 somewhere other than `C:\msys64`; the CI workflow uses this portable path.
@@ -51,10 +51,10 @@ beside the binary, beside its containing project directory, or beside the
 current working directory. This lets development builds find a nearby verified
 `scrantic` directory automatically.
 
-Local development uses the following ignored directories when applicable:
+Local development uses the following directories when applicable:
 
-* `scrantic/` - default local folder for user-supplied archives and sounds;
-  it is never part of the public source tree
+* `scrantic/` - default local folder for user-supplied archives and sounds. Git
+  tracks only `Johnny-Castaway-Original-Data.sfv`; all game data remains ignored
 * `build/` - build scripts, Windows manifest/version/icon resources, and output
 
 Windows command-line options:
@@ -285,6 +285,16 @@ For reference, the canonical archive hashes are:
 ### Tested Files
 * `RESOURCE.001` - `md5: 8bb6c99e9129806b5089a39d24228a36`
 * `RESOURCE.MAP` - `md5: 374e6d05c5e0acd88fb5af748948c899`
+
+The repository includes
+[`scrantic/Johnny-Castaway-Original-Data.sfv`](scrantic/Johnny-Castaway-Original-Data.sfv)
+for verification with any standard SFV checker. Copy the two user-supplied
+archives beside that file and verify these CRC-32 values:
+
+* `RESOURCE.001` - `F11E965A`
+* `RESOURCE.MAP` - `40660749`
+
+The SFV contains filenames and checksums only; it does not contain game data.
 
 These are the only game-data archives accepted by the application. They are
 loaded from the selected external directory and rejected when either MD5 differs.

@@ -36,19 +36,13 @@ unless it exposes a stability, data-safety, or fidelity regression.
    policy, and confirm both downloadable artifacts were built from the stable
    tag.
 
-6. [ ] **Publish the prepared `DrWize/home` portfolio update after stable.**
-   Update the `agent/all-project-portfolio` branch from RC1 to the stable
-   release. Keep the Windows 11 x64 summary, CI badge, and data-policy note.
-   Omit the screenshot unless a clearly publishable image can be produced
-   without redistributing Sierra/Dynamix artwork.
-
-7. [ ] **Run the physical CRT performance matrix.**
+6. [ ] **Run the physical CRT performance matrix.**
    Use `F9` at 1920x1080, 3840x2160, 5120x1440, and 7680x2160, including at
    least one integrated or lower-powered GPU. Record Off, Lightweight, Fast,
    HDR Pop, and Lottes results. Confirm that shader work is limited to the
    centered 4:3 viewport rather than the 32:9 pillarboxes.
 
-8. [ ] **Set automatic shader defaults only after physical measurements.**
+7. [ ] **Set automatic shader defaults only after physical measurements.**
    Add conservative inadequate-performance thresholds with a user override.
    Keep the existing shader compile/capability fallback regardless of measured
    defaults.
@@ -119,7 +113,7 @@ The clearest existing names that do not need an alternate label are
 `FISHWALK.TTM`, `MJRAFT.TTM`, `MJJOG.TTM`, `SJMSSGE.TTM`, and `THEEND.TTM`;
 they remain in the table only so the full 41-resource review is auditable.
 
-## Known limitations and deferred scope
+## Future suggestions and known limitations
 
 - Night fidelity remains observationally unverified because the sampled
   11-hour recording sections are all daytime.
@@ -154,6 +148,9 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
 
 ## Everything fixed and completed
 
+- [x] Added `scrantic/Johnny-Castaway-Original-Data.sfv` with the verified
+  CRC-32 values for both canonical archives. Git tracks only the SFV in that
+  folder and continues to ignore all original game data.
 - [x] Added the **Choose scene collection** selector with all 41 friendly titles,
   exact TTM filenames, and smaller embedded-metadata descriptions. Kept the
   catalog in source instead of the INI, displayed the active portable or
@@ -214,8 +211,9 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
   Story and individual TTMs, avoiding desktop flashes and repeated startup.
 - [x] Added automated resource, parser, renderer, configuration, story,
   navigation, screenshot, UI activity, and Windows command-line coverage.
-- [x] Kept generated binaries, history, logs, local profiles, screenshots,
-  `scrantic`, and Sierra/Dynamix data out of the source repository.
+- [x] Kept generated binaries, history, logs, local profiles, screenshots, all
+  user-supplied `scrantic` content, and Sierra/Dynamix data out of the source
+  repository; only the checksum-only SFV is tracked.
 - [x] Decided not to create replacement `FLAME.BMP` or `FLURRY.BMP` artwork for
   stable. Any future optional replacement must document authorship and license
   and must not be represented as recovered Sierra/Dynamix data.
