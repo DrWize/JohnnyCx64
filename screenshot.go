@@ -33,8 +33,11 @@ func requestScreenshot() {
 
 func screenshotMetadata(now time.Time) []pngTextTag {
 	content := currentContent
+	contentLabel := "Full Story"
 	if content == "" {
 		content = "Full Story"
+	} else {
+		contentLabel = ttmCatalogInfo(content).label
 	}
 	windowMode := "Fullscreen"
 	if appSettings.previewParent != 0 {
@@ -58,6 +61,7 @@ func screenshotMetadata(now time.Time) []pngTextTag {
 		{key: "Aspect Mode", value: aspect},
 		{key: "Scene Order", value: storyPlaybackModeLabel()},
 		{key: "Content", value: content},
+		{key: "Content Label", value: contentLabel},
 		{key: "Sky", value: islandDayNightLabel()},
 		{key: "Holiday", value: islandHolidayLabel()},
 		{key: "Window Mode", value: windowMode},

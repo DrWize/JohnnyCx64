@@ -14,7 +14,8 @@ import (
 // A second pass refactor can be done to fix this garbage.
 var (
 	// r.c. - added by me in case someone tries to run multiple instances of the screensaver.
-	cfgLock sync.Mutex
+	cfgLock       sync.Mutex
+	cfgActivePath string
 )
 
 type TConfig struct {
@@ -84,6 +85,7 @@ func cfgFileWriteUnlocked(cfg *TConfig) {
 	data := cfgFormat(cfg)
 	portablePath := cfgFullPath()
 	if err := os.WriteFile(portablePath, []byte(data), 0644); err == nil {
+		cfgActivePath = portablePath
 		return
 	} else {
 		fmt.Fprintf(os.Stderr, "WARN: cannot write portable settings %s: %v\n", portablePath, err)
@@ -98,6 +100,16 @@ func cfgFileWriteUnlocked(cfg *TConfig) {
 	if fallbackErr != nil {
 		panic(fmt.Errorf("write config beside executable or in LocalAppData: %w", fallbackErr))
 	}
+	cfgActivePath = fallbackPath
+}
+
+func cfgDisplayPath() string {
+	cfgLock.Lock()
+	defer cfgLock.Unlock()
+	if cfgActivePath != "" {
+		return cfgActivePath
+	}
+	return cfgFullPath()
 }
 
 func cfgFormat(cfg *TConfig) string {
@@ -145,6 +157,7 @@ func cfgFileRead(cfg *TConfig) {
 	for _, candidate := range candidates {
 		f, err = os.Open(candidate.path)
 		if err == nil {
+			cfgActivePath = candidate.path
 			migrateLegacy = candidate.migrate
 			break
 		}

@@ -9,8 +9,9 @@ import (
 )
 
 type menuEntry struct {
-	label  string
-	target string
+	label       string
+	description string
+	target      string
 }
 
 type shortcutDockItem struct {
@@ -75,7 +76,7 @@ func cycleFastCRTSharpness() {
 
 func menuInitialize(current string) {
 	menuVisible = appSettings.menu
-	menuEntries = []menuEntry{{label: "Full story", target: ""}}
+	menuEntries = []menuEntry{{label: "Full story", description: "Play the complete island story", target: ""}}
 
 	names := make([]string, 0, numTtmResources)
 	for i := 0; i < numTtmResources; i++ {
@@ -83,17 +84,25 @@ func menuInitialize(current string) {
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		menuEntries = append(menuEntries, menuEntry{label: name, target: name})
+		item := ttmCatalogInfo(name)
+		menuEntries = append(menuEntries, menuEntry{label: item.label, description: item.description, target: name})
 	}
 
 	menuSelection = menuIndexForTarget(current)
-	menuShowStatus("Now running: " + menuEntries[menuSelection].label)
+	menuShowStatus("Now running: " + menuEntryTitle(menuEntries[menuSelection]))
 	dataManagerRefresh()
 	menuRevealFooter()
 	uiInitializeActivity(rl.GetTime(), rl.GetMousePosition())
 	if menuVisible || appSettings.windowed {
 		rl.ShowCursor()
 	}
+}
+
+func menuEntryTitle(entry menuEntry) string {
+	if entry.target == "" {
+		return entry.label
+	}
+	return fmt.Sprintf("%s (%s)", entry.label, entry.target)
 }
 
 func uiInitializeActivity(now float64, mouse rl.Vector2) {
@@ -309,7 +318,7 @@ func menuContentChanged(target string) {
 		menuShowStatus(dayNightStatusPending)
 		dayNightStatusPending = ""
 	} else {
-		menuShowStatus("Now running: " + menuEntries[menuSelection].label)
+		menuShowStatus("Now running: " + menuEntryTitle(menuEntries[menuSelection]))
 	}
 	menuRevealFooter()
 }
@@ -548,6 +557,13 @@ func menuButton(rect rl.Rectangle, label string) bool {
 	return hovered && rl.IsMouseButtonPressed(rl.MouseButtonLeft)
 }
 
+func drawTextFitted(text string, x, y int32, maxWidth int32, fontSize, minimumSize int32, color rl.Color) {
+	for fontSize > minimumSize && rl.MeasureText(text, fontSize) > maxWidth {
+		fontSize--
+	}
+	rl.DrawText(text, x, y, fontSize, color)
+}
+
 func menuUpdateAndDraw() {
 	menuDrawStatus()
 	menuDrawPauseIndicator()
@@ -663,35 +679,41 @@ func menuUpdateAndDraw() {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}
 
-	currentLabel := menuEntries[menuIndexForTarget(currentContent)].label
-	selectedLabel := menuEntries[menuSelection].label
+	currentEntry := menuEntries[menuIndexForTarget(currentContent)]
+	selectedEntry := menuEntries[menuSelection]
+	currentLabel := menuEntryTitle(currentEntry)
+	selectedLabel := menuEntryTitle(selectedEntry)
 	contentOffset := float32(0)
 	if appSettings.screenSaver {
 		contentOffset = 18
 	}
-	rl.DrawText("Running: "+currentLabel, int32(panelX+24), int32(panelY+112+contentOffset), 19, rl.NewColor(150, 205, 255, 255))
+	drawTextFitted("Running: "+currentLabel, int32(panelX+24), int32(panelY+112+contentOffset), int32(panelW-48), 19, 14, rl.NewColor(150, 205, 255, 255))
 	if number, total, description, ok := currentTTMSceneInfo(); ok {
 		sceneText := fmt.Sprintf("Scene: %d/%d — %s", number, total, description)
 		rl.DrawText(sceneText, int32(panelX+24), int32(panelY+138+contentOffset), 17, rl.NewColor(175, 210, 180, 255))
 	}
-	rl.DrawText(fmt.Sprintf("Choose TTM (%d/%d):", menuSelection+1, len(menuEntries)), int32(panelX+24), int32(panelY+170+contentOffset), 18, rl.LightGray)
-	rl.DrawText(selectedLabel, int32(panelX+24), int32(panelY+196+contentOffset), 25, rl.Gold)
+	rl.DrawText(fmt.Sprintf("Choose scene collection (%d/%d):", menuSelection+1, len(menuEntries)), int32(panelX+24), int32(panelY+170+contentOffset), 18, rl.LightGray)
+	drawTextFitted(selectedLabel, int32(panelX+24), int32(panelY+196+contentOffset), int32(panelW-48), 25, 17, rl.Gold)
+	drawTextFitted(selectedEntry.description, int32(panelX+24), int32(panelY+228+contentOffset), int32(panelW-48), 15, 12, rl.LightGray)
 	if menuSceneMessage != "" {
-		rl.DrawText(menuSceneMessage, int32(panelX+24), int32(panelY+230+contentOffset), 16, rl.LightGray)
+		drawTextFitted(menuSceneMessage, int32(panelX+24), int32(panelY+250+contentOffset), int32(panelW-48), 16, 12, rl.LightGray)
 	}
-	guideY := panelY + panelH - 236
-	rl.DrawText("Filter impact:", int32(panelX+24), int32(guideY), 15, rl.LightGray)
+	guideY := panelY + panelH - 258
+	settingsPath := "Settings file: " + compactMiddle(cfgDisplayPath(), 72)
+	drawTextFitted(settingsPath, int32(panelX+24), int32(guideY), int32(panelW-48), 14, 11, rl.LightGray)
+	drawTextFitted("Filter impact: Off Minimal | Light Very low | Fast Low | HDR Moderate | Lottes High", int32(panelX+24), int32(guideY+22), int32(panelW-48), 14, 11, rl.Gold)
 	githubFontSize := int32(15)
 	githubWidth := rl.MeasureText(projectGitHubLabel, githubFontSize)
 	githubX := panelX + panelW - 24 - float32(githubWidth)
-	githubRect := rl.NewRectangle(githubX-4, guideY-3, float32(githubWidth)+8, float32(githubFontSize)+6)
+	githubY := guideY + 43
+	githubRect := rl.NewRectangle(githubX-4, githubY-3, float32(githubWidth)+8, float32(githubFontSize)+6)
 	githubHovered := rl.CheckCollisionPointRec(rl.GetMousePosition(), githubRect)
 	githubColor := rl.NewColor(125, 185, 255, 255)
 	if githubHovered {
 		githubColor = rl.NewColor(175, 215, 255, 255)
 	}
-	rl.DrawText(projectGitHubLabel, int32(githubX), int32(guideY), githubFontSize, githubColor)
-	rl.DrawLine(int32(githubX), int32(guideY)+githubFontSize+1, int32(githubX)+githubWidth, int32(guideY)+githubFontSize+1, githubColor)
+	rl.DrawText(projectGitHubLabel, int32(githubX), int32(githubY), githubFontSize, githubColor)
+	rl.DrawLine(int32(githubX), int32(githubY)+githubFontSize+1, int32(githubX)+githubWidth, int32(githubY)+githubFontSize+1, githubColor)
 	if githubHovered && rl.IsMouseButtonPressed(rl.MouseButtonLeft) {
 		if err := openURL(uintptr(rl.GetWindowHandle()), projectGitHubURL); err != nil {
 			log.Printf("settings: open GitHub link: %v", err)
@@ -700,8 +722,6 @@ func menuUpdateAndDraw() {
 			menuShowStatus("Opening " + projectGitHubLabel)
 		}
 	}
-	rl.DrawText("Off Minimal | Light Very low | Fast Low | HDR Moderate | Lottes High", int32(panelX+24), int32(guideY+20), 14, rl.Gold)
-
 	toggleY := panelY + panelH - 198
 	toggleGap := float32(12)
 	toggleW := (panelW - 48 - toggleGap*3) / 4

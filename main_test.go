@@ -395,6 +395,30 @@ func TestMenuRunNextTTMWraps(t *testing.T) {
 	t.Fatal("menuRunNextTTM() did not request a content switch")
 }
 
+func TestTTMCatalogKeepsFriendlyLabelsSeparateFromResourceNames(t *testing.T) {
+	if len(ttmCatalog) != 41 {
+		t.Fatalf("TTM catalog contains %d entries, want 41", len(ttmCatalog))
+	}
+	item := ttmCatalogInfo("MJFIRE.TTM")
+	if item.label != "Building a Campfire" {
+		t.Fatalf("MJFIRE.TTM label = %q", item.label)
+	}
+	if item.description == "" {
+		t.Fatal("MJFIRE.TTM description is empty")
+	}
+	entry := menuEntry{label: item.label, description: item.description, target: "MJFIRE.TTM"}
+	if got := menuEntryTitle(entry); got != "Building a Campfire (MJFIRE.TTM)" {
+		t.Fatalf("menu title = %q", got)
+	}
+}
+
+func TestTTMCatalogFallsBackToResourceName(t *testing.T) {
+	item := ttmCatalogInfo("UNKNOWN.TTM")
+	if item.label != "UNKNOWN.TTM" || item.description == "" {
+		t.Fatalf("fallback catalog item = %#v", item)
+	}
+}
+
 func TestTTMLoadScansStringBearingOpcode(t *testing.T) {
 	data := make([]byte, 0, 20)
 	data = binary.LittleEndian.AppendUint16(data, 0xF02F)

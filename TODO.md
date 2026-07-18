@@ -1,6 +1,6 @@
 # Johnny Castaway 2026 — Release and fidelity worklist
 
-Updated: 2026-07-17
+Updated: 2026-07-18
 
 ## Ordered work queue
 
@@ -53,14 +53,25 @@ unless it exposes a stability, data-safety, or fidelity regression.
    Keep the existing shader compile/capability fallback regardless of measured
    defaults.
 
-## Review queue — TTM display labels only
+## TTM display labels
 
-No resource, file, or runtime identifier should be renamed. These are candidate
-display labels inferred from descriptions embedded in the original TTM tag
-metadata. Review them before optionally using a separate filename-to-label map
-in the menu.
+No resource, file, or runtime identifier is renamed. Settings uses these display
+labels and descriptions inferred from the original TTM tag metadata while
+retaining each exact filename for loading, diagnostics, and command-line use.
 
-| Existing TTM | Candidate display name | Embedded description evidence |
+Implemented presentation and storage decisions:
+
+- The Settings selector is titled **Choose scene collection**.
+- Each selection shows `Friendly title (RESOURCE.TTM)` as its primary label and
+  the embedded-description evidence in smaller text directly below it.
+- The 41-entry catalog is built into the application, not written to
+  `JohnnyCastaway.ini`; the INI remains a compact persistent-settings file.
+- Settings displays the active `JohnnyCastaway.ini` path so portable and
+  LocalAppData fallback configurations are distinguishable.
+- Runtime loading, `--ttm`, logs, and diagnostics continue to use exact TTM
+  filenames. PNG metadata records both `Content` and `Content Label`.
+
+| Existing TTM | Display name | Embedded description evidence |
 | --- | --- | --- |
 | `FIRE.TTM` | Campfire Effects | Small through extra-large flame, smoke, wood, and rubbing sticks |
 | `FISHWALK.TTM` | Fishing Walk | Fishwalk |
@@ -143,6 +154,11 @@ and display decisions remain in [`ROADMAP.md`](ROADMAP.md).
 
 ## Everything fixed and completed
 
+- [x] Added the **Choose scene collection** selector with all 41 friendly titles,
+  exact TTM filenames, and smaller embedded-metadata descriptions. Kept the
+  catalog in source instead of the INI, displayed the active portable or
+  LocalAppData INI path, and added separate PNG `Content` and `Content Label`
+  metadata.
 - [x] Created the focused `agent/fidelity-ui-rc2` branch and committed the
   fidelity, configuration, interface, test, and documentation work.
 - [x] Migrated to a Windows 11-only native x64 codebase. One MinGW64/amd64

@@ -117,9 +117,14 @@ control in both desktop and screensaver modes, including the current CRT,
 scene-order, scaling, and sharpness selections. It wraps cleanly on narrower
 windows, fades after ten seconds of inactivity, and returns on mouse or keyboard
 input. Fullscreen is shown only where that control is available.
-The menu can select Full Story or any embedded TTM, and can advance to the next
-TTM or internal `SET_SCENE` tag without recreating the application window.
-After a change, a short on-screen notification shows the exact TTM now running.
+The Settings menu can select Full Story or any embedded TTM under the friendly
+heading `Choose scene collection`. Each collection shows a descriptive title,
+its exact TTM resource filename, and a smaller description derived from the
+original tag metadata. The menu can advance to the next collection or internal
+`SET_SCENE` tag without recreating the application window. After a change, a
+short on-screen notification shows both the friendly title and exact TTM.
+Settings also shows the active `JohnnyCastaway.ini` path, including the
+LocalAppData fallback when the application directory is protected.
 Content changes retain the same application window and graphics context: the
 borderless fullscreen surface no longer closes, flashes the desktop, or repeats
 the startup fade when switching between Full Story and individual TTMs. Only
