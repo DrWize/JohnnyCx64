@@ -23,9 +23,202 @@ var standaloneTTMSpritePreloads = map[string][]standaloneTTMSpritePreload{
 	},
 }
 
+// The ADS controllers sometimes compose one visible event from several TTM
+// tags. Direct TTM playback has no ADS controller, so recreate the confirmed
+// companion layers for tags whose original script explicitly starts them
+// together and waits for the selected tag.
+var standaloneTTMCompanionScenes = map[string]map[uint16][]uint16{
+	"GJGULIVR.TTM": {
+		15: []uint16{14},
+		12: []uint16{58},
+		52: []uint16{58},
+		53: []uint16{58},
+		54: []uint16{58},
+		9:  []uint16{58, 12},
+		61: []uint16{58, 66},
+		66: []uint16{58, 61},
+		68: []uint16{65},
+		65: []uint16{68},
+		63: []uint16{68},
+		67: []uint16{60},
+	},
+	"GJVIS3.TTM": {
+		52: []uint16{44},
+		53: []uint16{44},
+		60: []uint16{44},
+	},
+	"GJVIS5.TTM": {
+		8: []uint16{1},
+		7: []uint16{1, 9},
+		9: []uint16{1, 10},
+		3: []uint16{1},
+	},
+	"GJVIS6.TTM": {
+		3: []uint16{4},
+		5: []uint16{4, 9},
+		9: []uint16{4, 6},
+		7: []uint16{4},
+		8: []uint16{4},
+	},
+	"GJDIVE.TTM": {
+		13: []uint16{12},
+		8:  []uint16{12},
+		7:  []uint16{12},
+		9:  []uint16{12},
+		14: []uint16{12, 11},
+	},
+	"GJNAT3.TTM": {
+		16: []uint16{18},
+	},
+	"GJNAT1.TTM": {
+		20: []uint16{19},
+		22: []uint16{21},
+		25: []uint16{34},
+	},
+	"MJCOCO.TTM": {
+		18: []uint16{17, 33},
+		20: []uint16{19},
+	},
+	"MJRAFT.TTM": {
+		3:  []uint16{9},
+		4:  []uint16{9},
+		7:  []uint16{9},
+		6:  []uint16{9},
+		15: []uint16{9},
+	},
+	"MJFISH.TTM": {
+		18: []uint16{1},
+		44: []uint16{1, 43},
+	},
+	"MJFISHC.TTM": {
+		17: []uint16{43},
+		58: []uint16{43, 62},
+	},
+	"MJTELE.TTM": {
+		12: []uint16{27},
+		13: []uint16{27},
+	},
+	"MJREAD.TTM": {
+		98:  []uint16{113},
+		108: []uint16{113, 114},
+		96:  []uint16{85},
+		110: []uint16{1},
+	},
+	"MJBATH.TTM": {
+		3:  []uint16{42, 20, 30, 19, 21},
+		24: []uint16{42, 20, 30, 19, 14, 23},
+	},
+	"MJSAND.TTM": {
+		5:  []uint16{1, 3},
+		10: []uint16{1, 8},
+		40: []uint16{1, 35},
+		83: []uint16{1, 49, 53, 42},
+		84: []uint16{1, 49, 57, 58, 59, 60},
+		51: []uint16{1, 46, 79, 81, 82, 80, 50},
+	},
+	"MJFIRE.TTM": {
+		40: []uint16{39, 80, 81},
+		82: []uint16{141},
+		48: []uint16{44, 144},
+		49: []uint16{44, 144, 78},
+	},
+	"SJGLIMPS.TTM": {
+		106: []uint16{105},
+	},
+	"SBREAKUP.TTM": {
+		19: []uint16{33},
+		28: []uint16{33},
+		33: []uint16{37},
+	},
+	"SJLEAVES.TTM": {
+		3: []uint16{2},
+	},
+	"SJWORK.TTM": {
+		3: []uint16{9},
+		4: []uint16{9},
+		7: []uint16{9},
+	},
+	"SASKDATE.TTM": {
+		111: []uint16{5},
+		122: []uint16{116},
+		145: []uint16{121, 135, 128, 150},
+		141: []uint16{112, 138},
+	},
+	"SJMSSGE.TTM": {
+		36: []uint16{29},
+		19: []uint16{29, 6},
+		21: []uint16{29, 6, 32},
+		33: []uint16{29, 6, 32},
+	},
+	"THEEND.TTM": {
+		1: []uint16{9},
+		5: []uint16{9},
+		8: []uint16{9, 4, 6},
+	},
+	"WOULDBE.TTM": {
+		2:  []uint16{1, 4},
+		14: []uint16{4},
+		4:  []uint16{6},
+		13: []uint16{6},
+		7:  []uint16{6},
+	},
+}
+
 func ttmLoadStandaloneSpriteDependencies(ttmSlot *TTtmSlot, name string) {
 	for _, preload := range standaloneTTMSpritePreloads[name] {
 		grLoadBmp(ttmSlot, preload.slot, preload.resource)
+	}
+}
+
+func ttmStandaloneSceneSpriteResources(ttmSlot *TTtmSlot, name string, targetOffset uint32) map[uint16]string {
+	resources := make(map[uint16]string)
+	for _, preload := range standaloneTTMSpritePreloads[name] {
+		resources[preload.slot] = preload.resource
+	}
+	if ttmSlot == nil {
+		return resources
+	}
+
+	selectedSlot := uint16(0)
+	data := ttmSlot.data
+	limit := min(int(targetOffset), len(data))
+	for offset := 0; offset+2 <= limit; {
+		opcode := uint16(data[offset]) | uint16(data[offset+1])<<8
+		offset += 2
+		argCount := int(opcode & 0x000f)
+		if argCount == 0x0f {
+			start := offset
+			for offset < limit && data[offset] != 0 {
+				offset++
+			}
+			if offset >= limit {
+				break
+			}
+			value := string(data[start:offset])
+			offset++
+			if offset%2 != 0 {
+				offset++
+			}
+			if opcode == 0xF02F && selectedSlot < MaxBMPSlots {
+				resources[selectedSlot] = value
+			}
+			continue
+		}
+		byteCount := argCount * 2
+		if offset+byteCount > limit {
+			break
+		}
+		if opcode == 0x1051 && argCount > 0 {
+			selectedSlot = uint16(data[offset]) | uint16(data[offset+1])<<8
+		}
+		offset += byteCount
+	}
+	return resources
+}
+
+func ttmPrepareStandaloneSceneSprites(ttmSlot *TTtmSlot, name string, targetOffset uint32) {
+	for slot, resource := range ttmStandaloneSceneSpriteResources(ttmSlot, name, targetOffset) {
+		grLoadBmp(ttmSlot, slot, resource)
 	}
 }
 
@@ -237,6 +430,9 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0x1111:
 			// r.c. seems like some script animation marker possibly, perhaps used for debugging.
 			debugPrintf("\t:TAG #%d ------------------------\n", args[0])
+			if currentContent != "" && ttmThread == &ttmThreads[0] {
+				adsSetStandaloneCompanions(ttmSlot.name, args[0])
+			}
 		case 0x1121:
 			// is called before SAVE_IMAGE1, defines the id of the region
 			// for further use by CLEAR_SCREEN

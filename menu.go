@@ -442,12 +442,15 @@ func menuRunNextScene() {
 		return
 	}
 
-	ttmThreads[0].ip = slot.tags[nextTag].offset
+	targetOffset := slot.tags[nextTag].offset
+	ttmPrepareStandaloneSceneSprites(slot, currentContent, targetOffset)
+	ttmThreads[0].ip = targetOffset
 	ttmThreads[0].timer = 0
 	ttmThreads[0].delay = 0
 	ttmThreads[0].nextGotoOffset = 0
 	ttmThreads[0].isRunning = 1
 	grUpdateDelay = 0
+	adsSetStandaloneCompanions(currentContent, slot.tags[nextTag].id)
 
 	description := ttmSceneDescription(nextTag)
 	menuSceneMessage = fmt.Sprintf("Scene %d: %s", nextTag+1, description)

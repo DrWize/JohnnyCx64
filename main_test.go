@@ -647,6 +647,93 @@ func TestLilliputianTTMSpriteUsage(t *testing.T) {
 	}
 }
 
+func TestGulliverStandaloneScene54KeepsSleepingJohnny(t *testing.T) {
+	companions := standaloneTTMCompanionScenes["GJGULIVR.TTM"][54]
+	if !reflect.DeepEqual(companions, []uint16{58}) {
+		t.Fatalf("scene 54 companions = %v, want sleeping-Johnny scene 58", companions)
+	}
+}
+
+func TestStandaloneCompositeEventsKeepADSCompanions(t *testing.T) {
+	tests := []struct {
+		name       string
+		tag        uint16
+		companions []uint16
+	}{
+		{name: "GJGULIVR.TTM", tag: 15, companions: []uint16{14}},
+		{name: "GJGULIVR.TTM", tag: 9, companions: []uint16{58, 12}},
+		{name: "GJGULIVR.TTM", tag: 67, companions: []uint16{60}},
+		{name: "GJVIS3.TTM", tag: 52, companions: []uint16{44}},
+		{name: "GJVIS5.TTM", tag: 7, companions: []uint16{1, 9}},
+		{name: "GJVIS6.TTM", tag: 5, companions: []uint16{4, 9}},
+		{name: "GJDIVE.TTM", tag: 13, companions: []uint16{12}},
+		{name: "GJNAT3.TTM", tag: 16, companions: []uint16{18}},
+		{name: "MJCOCO.TTM", tag: 18, companions: []uint16{17, 33}},
+		{name: "MJFISH.TTM", tag: 44, companions: []uint16{1, 43}},
+		{name: "MJFISHC.TTM", tag: 58, companions: []uint16{43, 62}},
+		{name: "MJBATH.TTM", tag: 24, companions: []uint16{42, 20, 30, 19, 14, 23}},
+		{name: "MJSAND.TTM", tag: 84, companions: []uint16{1, 49, 57, 58, 59, 60}},
+		{name: "MJFIRE.TTM", tag: 49, companions: []uint16{44, 144, 78}},
+		{name: "SASKDATE.TTM", tag: 145, companions: []uint16{121, 135, 128, 150}},
+		{name: "SJMSSGE.TTM", tag: 21, companions: []uint16{29, 6, 32}},
+		{name: "MJRAFT.TTM", tag: 3, companions: []uint16{9}},
+		{name: "SJGLIMPS.TTM", tag: 106, companions: []uint16{105}},
+		{name: "SBREAKUP.TTM", tag: 19, companions: []uint16{33}},
+		{name: "SJLEAVES.TTM", tag: 3, companions: []uint16{2}},
+		{name: "SJWORK.TTM", tag: 3, companions: []uint16{9}},
+		{name: "THEEND.TTM", tag: 8, companions: []uint16{9, 4, 6}},
+		{name: "WOULDBE.TTM", tag: 2, companions: []uint16{1, 4}},
+	}
+	for _, test := range tests {
+		if got := standaloneTTMCompanionScenes[test.name][test.tag]; !reflect.DeepEqual(got, test.companions) {
+			t.Errorf("%s tag %d companions = %v, want %v", test.name, test.tag, got, test.companions)
+		}
+	}
+}
+
+func TestStandaloneCompositeEventTagsExist(t *testing.T) {
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
+	for name, scenes := range standaloneTTMCompanionScenes {
+		slot := &TTtmSlot{}
+		ttmLoadTTM(slot, name)
+		for primary, companions := range scenes {
+			if ttmFindTag(slot, primary) == 0 {
+				t.Errorf("%s primary tag %d is missing", name, primary)
+			}
+			for _, companion := range companions {
+				if ttmFindTag(slot, companion) == 0 {
+					t.Errorf("%s companion tag %d for primary %d is missing", name, companion, primary)
+				}
+			}
+		}
+	}
+}
+
+func TestGulliverStandaloneSceneJumpsRestoreSpriteSlots(t *testing.T) {
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
+	slot := &TTtmSlot{}
+	ttmLoadTTM(slot, "GJGULIVR.TTM")
+
+	tests := []struct {
+		tag  uint16
+		want map[uint16]string
+	}{
+		{tag: 58, want: map[uint16]string{3: "SLEEP.BMP"}},
+		{tag: 54, want: map[uint16]string{1: "LILIPUTS.BMP", 3: "SLEEP.BMP", 5: "GJBIPLAN.BMP"}},
+	}
+	for _, test := range tests {
+		offset := ttmFindTag(slot, test.tag)
+		resources := ttmStandaloneSceneSpriteResources(slot, slot.name, offset)
+		for imageSlot, resource := range test.want {
+			if resources[imageSlot] != resource {
+				t.Errorf("tag %d slot %d = %q, want %q", test.tag, imageSlot, resources[imageSlot], resource)
+			}
+		}
+	}
+}
+
 func TestDominantBottomColor(t *testing.T) {
 	pixels := []byte{
 		1, 1, 1, 255, 2, 2, 2, 255, 3, 3, 3, 255,

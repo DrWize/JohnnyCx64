@@ -913,9 +913,23 @@ func composeScene(ttmThreads []TTtmThread, holiday, clouds *TTtmThread) {
 		drawLayerToComposition(clouds.ttmLayer)
 	}
 	drawLayerToComposition(grSavedZonesLayer)
-	for i := 0; i < len(ttmThreads) && i < MaxTTMThreads; i++ {
-		if ttmThreads[i].isRunning != 0 {
-			drawLayerToComposition(ttmThreads[i].ttmLayer)
+	threadCount := min(len(ttmThreads), MaxTTMThreads)
+	if currentContent != "" {
+		// Standalone companion layers represent persistent story state and sit
+		// underneath the directly selected scene, matching the ADS thread order.
+		for i := 1; i < threadCount; i++ {
+			if ttmThreads[i].isRunning != 0 {
+				drawLayerToComposition(ttmThreads[i].ttmLayer)
+			}
+		}
+		if threadCount > 0 && ttmThreads[0].isRunning != 0 {
+			drawLayerToComposition(ttmThreads[0].ttmLayer)
+		}
+	} else {
+		for i := 0; i < threadCount; i++ {
+			if ttmThreads[i].isRunning != 0 {
+				drawLayerToComposition(ttmThreads[i].ttmLayer)
+			}
 		}
 	}
 	if holiday != nil && holiday.isRunning != 0 {

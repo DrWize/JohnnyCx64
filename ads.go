@@ -253,7 +253,7 @@ func adsAddScene(ttmSlotNo, ttmTag, arg3 uint16) {
 	ttmThread.fgColor = 0x0f
 	ttmThread.bgColor = 0x0f
 
-	if ttmSlotNo != 0 {
+	if ttmTag != 0 {
 		ttmThread.ip = ttmFindTag(&ttmSlots[ttmSlotNo], ttmTag)
 	} else {
 		ttmThread.ip = 0
@@ -275,6 +275,44 @@ func adsStopScene(sceneNo int) {
 	ttmThreads[sceneNo].ttmLayer = nil
 	ttmThreads[sceneNo].isRunning = 0
 	numThreads--
+}
+
+func adsResetStandaloneCompanions() {
+	for index := MaxTTMThreads - 1; index >= 1; index-- {
+		if ttmThreads[index].isRunning != 0 {
+			adsStopScene(index)
+		}
+	}
+}
+
+func adsSetStandaloneCompanions(ttmName string, sceneTag uint16) {
+	adsResetStandaloneCompanions()
+	for _, companionTag := range standaloneTTMCompanionScenes[ttmName][sceneTag] {
+		ttmPrepareStandaloneSceneSprites(&ttmSlots[0], ttmName, ttmFindTag(&ttmSlots[0], companionTag))
+		adsAddScene(0, companionTag, 0)
+	}
+	// Companion preparation scans may pass later LOAD_IMAGE instructions.
+	// Restore the selected scene's expected slots before either layer advances.
+	ttmPrepareStandaloneSceneSprites(&ttmSlots[0], ttmName, ttmFindTag(&ttmSlots[0], sceneTag))
+}
+
+func adsAdvanceStandaloneCompanions() {
+	for index := 1; index < MaxTTMThreads; index++ {
+		thread := &ttmThreads[index]
+		if thread.isRunning == 0 {
+			continue
+		}
+		if thread.nextGotoOffset != 0 {
+			thread.ip = thread.nextGotoOffset
+			thread.nextGotoOffset = 0
+		}
+		// A completed one-shot companion keeps its final layer until the primary
+		// scene changes. Looping companions use their own GOTO_TAG instructions.
+		if thread.isRunning == 2 {
+			continue
+		}
+		ttmPlay(thread)
+	}
 }
 
 func adsStopSceneByTtmTag(ttmSlotNo, ttmTag uint16) {
@@ -409,10 +447,12 @@ func adsPlaySingleTtm(ttmName string) {
 	for ttmThreads[0].ip < ttmSlots[0].dataSize {
 		ttmPlay(&ttmThreads[0])
 		ttmThreads[0].isRunning = 1
+		adsAdvanceStandaloneCompanions()
 		grUpdateDisplay(nil, ttmThreads[:], &ttmHolidayThread, nil)
 		grUpdateDelay = int(ttmThreads[0].delay)
 	}
 
+	adsResetStandaloneCompanions()
 	adsStopScene(0)
 	ttmResetSlot(&ttmSlots[0])
 	if ttmHolidayThread.isRunning != 0 && ttmHolidayThread.ttmLayer != nil {

@@ -115,6 +115,10 @@ they remain in the table only so the full 41-resource review is auditable.
 
 ## Future suggestions and known limitations
 
+- [ ] Replace raw `T` **Next scene** tag skipping with ADS-driven **Next event**
+  playback. Preserve original event order, timing, companion layers, cross-TTM
+  composition, and sprite state; retain raw tag navigation only as a debugging
+  tool.
 - Night fidelity remains observationally unverified because the sampled
   11-hour recording sections are all daytime.
 - `FLAME.BMP` and `FLURRY.BMP` remain unavailable; their effects are safely
