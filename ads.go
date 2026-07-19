@@ -428,6 +428,8 @@ func adsInit() {
 
 func adsPlaySingleTtm(ttmName string) {
 	adsInit()
+	islandResetStandaloneSkyAssets()
+	standaloneDayScreenName = ""
 	// Direct TTM playback loads a fixed background. Do not inherit the previous
 	// Full Story scene's randomized or left-island placement.
 	ttmUseStandalonePlacement()
@@ -455,6 +457,7 @@ func adsPlaySingleTtm(ttmName string) {
 	adsResetStandaloneCompanions()
 	adsStopScene(0)
 	ttmResetSlot(&ttmSlots[0])
+	islandResetStandaloneSkyAssets()
 	if ttmHolidayThread.isRunning != 0 && ttmHolidayThread.ttmLayer != nil {
 		grFreeLayer(ttmHolidayThread.ttmLayer)
 	}

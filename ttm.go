@@ -42,6 +42,16 @@ var standaloneTTMCompanionScenes = map[string]map[uint16][]uint16{
 		63: []uint16{68},
 		67: []uint16{60},
 	},
+	"GJGULL1.TTM": {
+		26: []uint16{41},
+		46: []uint16{35},
+	},
+	"GJLILIPU.TTM": {
+		20: []uint16{24},
+		24: []uint16{20},
+		25: []uint16{20},
+		26: []uint16{20, 25},
+	},
 	"GJVIS3.TTM": {
 		52: []uint16{44},
 		53: []uint16{44},
@@ -51,6 +61,9 @@ var standaloneTTMCompanionScenes = map[string]map[uint16][]uint16{
 		8: []uint16{1},
 		7: []uint16{1, 9},
 		9: []uint16{1, 10},
+		3: []uint16{1},
+	},
+	"GJVIS5W.TTM": {
 		3: []uint16{1},
 	},
 	"GJVIS6.TTM": {
@@ -77,6 +90,10 @@ var standaloneTTMCompanionScenes = map[string]map[uint16][]uint16{
 	},
 	"MJCOCO.TTM": {
 		18: []uint16{17, 33},
+		20: []uint16{19},
+	},
+	"MJCOCO1.TTM": {
+		18: []uint16{17},
 		20: []uint16{19},
 	},
 	"MJRAFT.TTM": {
@@ -430,14 +447,13 @@ func ttmPlay(ttmThread *TTtmThread) {
 		case 0x1111:
 			// r.c. seems like some script animation marker possibly, perhaps used for debugging.
 			debugPrintf("\t:TAG #%d ------------------------\n", args[0])
-			if currentContent != "" && ttmThread == &ttmThreads[0] {
+			if currentContent != "" && !standaloneEventActive() && ttmThread == &ttmThreads[0] {
 				adsSetStandaloneCompanions(ttmSlot.name, args[0])
 			}
 		case 0x1121:
-			// is called before SAVE_IMAGE1, defines the id of the region
-			// for further use by CLEAR_SCREEN
+			// Selects the GETPUT buffer used by SAVE_GETPUT_REGION.
 			// (see WOULDBE.TTM for a nice example)
-			debugPrintf("\tTTM_UNKNOWN_1 %d\n", args[0])
+			debugPrintf("\tSET_GETPUT_SLOT %d\n", args[0])
 		case 0x1201:
 			// ex TTM_UNKNOWN_2
 			debugPrintf("\tGOTO_TAG %d\n", args[0])
@@ -461,12 +477,12 @@ func ttmPlay(ttmThread *TTtmThread) {
 			debugPrintf("\tSET_CLIP_ZONE: %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grSetClipZone(ttmThread.ttmLayer, int16(args[0]), int16(args[1]), int16(args[2]), int16(args[3]))
 		case 0x4204:
-			debugPrintf("\tCOPY_ZONE_TO_BG: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
+			debugPrintf("\tSTORE_AREA: x:%d, y:%d, w:%d, h:%d\n", args[0], args[1], args[2], args[3])
 			grCopyZoneToBg(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0x4214:
 			// defines the zone to be redrawn at each update ?
 			// but seems not used in the original
-			debugPrintf("\tSAVE_IMAGE1 %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			debugPrintf("\tSAVE_GETPUT_REGION %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			grSaveImage1(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA002:
 			debugPrintf("\tDRAW_PIXEL %d %d\n", args[0], args[1])
@@ -477,7 +493,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			grSaveZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA064:
 			// only once, in GJGULIVR.TTM.txt
-			debugPrintf("\tRESTORE_ZONE %d %d %d %d\n", args[0], args[1], args[2], args[3])
+			debugPrintf("\tWIPE_RIGHT_TO_LEFT %d %d %d %d\n", args[0], args[1], args[2], args[3])
 			// r.c. if I enable this, the stupid copied zone, disappears too soon!!
 			//grRestoreZone(ttmThread.ttmLayer, args[0], args[1], args[2], args[3])
 		case 0xA0A4:
@@ -496,7 +512,7 @@ func ttmPlay(ttmThread *TTtmThread) {
 			debugPrintf("\tDRAW_SPRITE_FLIP x:%d y:%d sprtNo:%d imgNo:%d\n", args[0], args[1], args[2], args[3])
 			grDrawSpriteFlip(ttmThread.ttmLayer, ttmThread.ttmSlot, int16(args[0]), int16(args[1]), args[2], args[3])
 		case 0xA601:
-			debugPrintf("\tCLEAR SCREEN\n")
+			debugPrintf("\tDRAW_GETPUT %d\n", args[0])
 			grClearScreen(ttmThread.ttmLayer)
 		case 0xB606:
 			debugPrintf("\tDRAW_SCREEN x:%d y:%d w:%d h:%d buffer:%d->%d\n", args[0], args[1], args[2], args[3], args[4], args[5])
@@ -506,7 +522,11 @@ func ttmPlay(ttmThread *TTtmThread) {
 			soundPlay(args[0])
 		case 0xF01F:
 			debugPrintf("\tLOAD_SCREEN: %q\n", finalStr)
-			grLoadScreen(finalStr)
+			screenName := islandStandaloneScreen(finalStr)
+			grLoadScreen(screenName)
+			if screenName == "NIGHT.SCR" && standaloneDayScreenName != "" {
+				islandDrawStandaloneNightIsland()
+			}
 		case 0xF02F:
 			debugPrintf("\tLOAD_IMAGE: %q\n", finalStr)
 			grLoadBmp(ttmSlot, uint16(ttmThread.selectedBmpSlot), finalStr)

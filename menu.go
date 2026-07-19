@@ -167,7 +167,7 @@ func shortcutDockItems(screenSaver bool) []shortcutDockItem {
 	return append(items,
 		shortcutDockItem{key: "D", action: "Sky " + islandDayNightShortLabel()},
 		shortcutDockItem{key: "N", action: "Next TTM"},
-		shortcutDockItem{key: "T", action: "Next scene"},
+		shortcutDockItem{key: "T", action: "Next event"},
 		shortcutDockItem{key: "H", action: "Holiday"},
 		shortcutDockItem{key: "↑ ↓", action: "Select"},
 		shortcutDockItem{key: "Enter", action: "Run"},
@@ -410,6 +410,7 @@ func menuRunSelected() {
 	if len(menuEntries) == 0 {
 		return
 	}
+	standaloneResetEventMode()
 	requestContentSwitch(menuEntries[menuSelection].target)
 }
 
@@ -424,12 +425,35 @@ func menuRunNextTTM() {
 		next = 1 // Skip "Full story" when wrapping through TTMs.
 	}
 	menuSelection = next
+	standaloneResetEventMode()
 	requestContentSwitch(menuEntries[next].target)
+}
+
+func menuRunNextEvent() {
+	if currentContent == "" {
+		menuSceneMessage = "Choose a scene collection before using Next event."
+		menuShowStatus(menuSceneMessage)
+		return
+	}
+	event, number, total, ok := standaloneSelectNextEvent(currentContent)
+	if !ok {
+		menuSceneMessage = "No original ADS event uses this scene collection."
+		menuShowStatus(menuSceneMessage)
+		return
+	}
+	menuSceneMessage = standaloneEventStatus(event, number, total)
+	log.Printf("selected %s for %s", menuSceneMessage, currentContent)
+	requestContentSwitch(currentContent)
 }
 
 func menuRunNextScene() {
 	if currentContent == "" {
-		menuSceneMessage = "Next scene is available while a TTM is running."
+		menuSceneMessage = "Raw tag stepping is available while a TTM is running."
+		menuShowStatus(menuSceneMessage)
+		return
+	}
+	if standaloneEventActive() {
+		menuSceneMessage = "Reselect the collection before debugging raw TTM tags."
 		menuShowStatus(menuSceneMessage)
 		return
 	}
@@ -465,14 +489,20 @@ func menuCycleDayNightPreview() {
 
 func menuApplyDayNightPreview(label string) {
 	menuSceneMessage = "Day/night preview: " + label
-	if currentContent == "" {
+	if currentContent == "" || standaloneEventActive() {
 		// Restart the Full Story content session so the background changes at
 		// once, but skip its introductory title screen for this preview action.
 		dayNightStatusPending = menuSceneMessage
-		storySkipIntroOnce = true
+		storySkipIntroOnce = currentContent == ""
 		requestContentSwitch(currentContent)
+		menuShowStatus(menuSceneMessage + " (used by Full Story)")
+		return
 	}
-	menuShowStatus(menuSceneMessage + " (used by Full Story)")
+	if islandApplyStandaloneDayNight() {
+		menuShowStatus(menuSceneMessage + " (applied to this island scene)")
+	} else {
+		menuShowStatus(menuSceneMessage + " (saved; this scene has no island sky)")
+	}
 }
 
 func validTTMSceneIndexes(slot *TTtmSlot) []int {
@@ -628,7 +658,11 @@ func menuUpdateAndDraw(queuedKey int32) {
 		menuCycleDayNightPreview()
 	}
 	if rl.IsKeyPressed(rl.KeyT) {
-		menuRunNextScene()
+		if controlDown {
+			menuRunNextScene()
+		} else {
+			menuRunNextEvent()
+		}
 	}
 	if rl.IsKeyPressed(rl.KeyH) {
 		label := islandCycleHoliday()
@@ -677,7 +711,7 @@ func menuUpdateAndDraw(queuedKey int32) {
 	buildWidth := rl.MeasureText(buildLabel, 15)
 	rl.DrawText(buildLabel, int32(panelX+panelW-24)-buildWidth, int32(panelY+26), 15, rl.Gray)
 	drawTextFitted("F1/Esc hide  F fullscreen  F2 filter  F3 order  F4 scaling  F5 log  F10 data", int32(panelX+24), int32(panelY+58), int32(panelW-48), 14, 11, rl.LightGray)
-	drawTextFitted("Up/Down choose  Enter run  Space pause  D sky mode  N next TTM  T scene  H holiday  F7 sharp  F8 stats  F9 test", int32(panelX+24), int32(panelY+80), int32(panelW-48), 14, 11, rl.LightGray)
+	drawTextFitted("Up/Down choose  Enter run  Space pause  D sky mode  N next TTM  T event  H holiday  F7 sharp  F8 stats  F9 test", int32(panelX+24), int32(panelY+80), int32(panelW-48), 14, 11, rl.LightGray)
 	if appSettings.screenSaver {
 		rl.DrawText("Screensaver continues behind this panel; unlisted input exits.", int32(panelX+24), int32(panelY+102), 15, rl.Gold)
 	}
@@ -691,7 +725,10 @@ func menuUpdateAndDraw(queuedKey int32) {
 		contentOffset = 18
 	}
 	drawTextFitted("Running: "+currentLabel, int32(panelX+24), int32(panelY+112+contentOffset), int32(panelW-48), 19, 14, rl.NewColor(150, 205, 255, 255))
-	if number, total, description, ok := currentTTMSceneInfo(); ok {
+	if event, number, total, ok := standaloneSelectedEvent(currentContent); ok {
+		eventText := standaloneEventStatus(event, number, total)
+		drawTextFitted(eventText, int32(panelX+24), int32(panelY+138+contentOffset), int32(panelW-48), 17, 13, rl.NewColor(175, 210, 180, 255))
+	} else if number, total, description, ok := currentTTMSceneInfo(); ok {
 		sceneText := fmt.Sprintf("Scene: %d/%d — %s", number, total, description)
 		drawTextFitted(sceneText, int32(panelX+24), int32(panelY+138+contentOffset), int32(panelW-48), 17, 13, rl.NewColor(175, 210, 180, 255))
 	}
@@ -774,8 +811,8 @@ func menuUpdateAndDraw(queuedKey int32) {
 	if menuButton(nextTTM, "Next TTM (N)") {
 		menuRunNextTTM()
 	}
-	if menuButton(nextScene, "Next scene (T)") {
-		menuRunNextScene()
+	if menuButton(nextScene, "Next event (T)") {
+		menuRunNextEvent()
 	}
 	if menuButton(dataButton, "Data files (F10)") {
 		dataManagerSetVisible(true)

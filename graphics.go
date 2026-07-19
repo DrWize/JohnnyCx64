@@ -914,7 +914,7 @@ func composeScene(ttmThreads []TTtmThread, holiday, clouds *TTtmThread) {
 	}
 	drawLayerToComposition(grSavedZonesLayer)
 	threadCount := min(len(ttmThreads), MaxTTMThreads)
-	if currentContent != "" {
+	if currentContent != "" && !standaloneEventActive() {
 		// Standalone companion layers represent persistent story state and sit
 		// underneath the directly selected scene, matching the ADS thread order.
 		for i := 1; i < threadCount; i++ {
@@ -1114,7 +1114,12 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 
 	// Without the +2 there is a two-pixel gap on the GJVIS6.TTM cargo
 	// hull. The original renderer appears to round this boundary outward.
-	grCopyRenderTextureRegion(sur, grSavedZonesLayer, x, y, width+2, height)
+	copyWidth := width + 2
+	// STORE AREA is a buffer replacement, not an alpha composite. Clear the
+	// destination first so transparent source pixels erase stale foreground
+	// (notably the stationary Gulliver ship before its sail-away frames).
+	grClearLayerRegion(grSavedZonesLayer, x, y, copyWidth, height)
+	grCopyRenderTextureRegion(sur, grSavedZonesLayer, x, y, copyWidth, height)
 
 	// BELOW IS ORIGINAL C Code
 
@@ -1127,6 +1132,19 @@ func grCopyZoneToBg(sur *rl.RenderTexture2D, x, y, width, height uint16) {
 	// original SDL code
 	//SDL_BlitSurface(sfc, &rect, grSavedZonesLayer, &rect);
 
+}
+
+func grClearLayerRegion(sur *rl.RenderTexture2D, x, y, width, height uint16) {
+	if sur == nil || width == 0 || height == 0 || x >= screenWidth || y >= screenHeight {
+		return
+	}
+	clippedWidth := min(int(width), screenWidth-int(x))
+	clippedHeight := min(int(height), screenHeight-int(y))
+	rl.BeginTextureMode(*sur)
+	rl.BeginScissorMode(int32(x), int32(y), int32(clippedWidth), int32(clippedHeight))
+	rl.ClearBackground(rl.Blank)
+	rl.EndScissorMode()
+	rl.EndTextureMode()
 }
 
 func grSaveImage1(sur *rl.RenderTexture2D, arg0, arg1, arg2, arg3 uint16) { // // TODO : rename ?

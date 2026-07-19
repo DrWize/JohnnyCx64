@@ -226,6 +226,19 @@ func runContentSession(target string) (nextTarget string, switched bool) {
 	menuContentChanged(target)
 	if target == "" {
 		storyPlay()
+	} else if _, _, _, eventMode := standaloneSelectedEvent(target); eventMode {
+		for {
+			event, number, total, ok := standaloneSelectedEvent(target)
+			if !ok {
+				standaloneResetEventMode()
+				break
+			}
+			menuSceneMessage = standaloneEventStatus(event, number, total)
+			menuShowStatus("Now running: " + menuSceneMessage)
+			log.Printf("playing %s for %s", menuSceneMessage, target)
+			adsPlayStandaloneEvent(event)
+			standaloneAdvanceEvent(target)
+		}
 	} else {
 		for {
 			adsPlaySingleTtm(target)

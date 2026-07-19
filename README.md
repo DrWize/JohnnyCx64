@@ -129,9 +129,12 @@ after the capture. Each PNG embeds searchable text metadata for the application
 version, capture time, display filter and sharpness, image scaling, aspect mode,
 scene order, content, sky and holiday modes, window mode, resolution, and mute
 setting.
-Press `D` to cycle the Full Story background through Day, Night, and Automatic
+Press `D` to cycle island backgrounds through Day, Night, and Automatic
 (clock), using the same sequence as the Settings `Sky` button. `N` remains
-assigned to Next TTM.
+assigned to Next TTM. While an individual scene collection is selected, `T`
+runs the next complete original ADS event and preserves its timing, companion
+layers, cross-TTM resources, and sprite state. Raw TTM tag stepping remains
+available only as the hidden `Ctrl+T` debugging control.
 Press `Space` outside an open Settings, Data Files, or Runtime Log panel to
 pause the entire scene, including animation timers and active sound effects.
 Press `Space` again to resume without consuming the time spent paused. Runtime
@@ -159,8 +162,15 @@ The Settings menu can select Full Story or any embedded TTM under the friendly
 heading `Choose scene collection`. Each collection shows a descriptive title,
 its exact TTM resource filename, and a smaller description derived from the
 original tag metadata. The menu can advance to the next collection or internal
-`SET_SCENE` tag without recreating the application window. After a change, a
-short on-screen notification shows both the friendly title and exact TTM.
+ADS event without recreating the application window; raw `SET_SCENE` tag
+navigation remains available through the hidden `Ctrl+T` debugging shortcut.
+After a change, a short on-screen notification shows both the friendly title
+and exact TTM.
+
+All 41 collections, their ADS event usage, and all 616 embedded named
+subscenes are documented in the collapsible
+[TTM scene collection and subscene catalog](TTM_SCENES.md).
+
 Settings also shows the active `JohnnyCastaway.ini` path, including the
 LocalAppData fallback when the application directory is protected.
 Content changes retain the same application window and graphics context: the

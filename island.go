@@ -23,6 +23,9 @@ var (
 	islandHolidayOverride = -1
 	// -1 follows the real clock; 0 and 1 force day or night for preview.
 	islandDayNightOverride = -1
+	// Direct island TTMs load a fixed daytime ocean screen. Remember it so the
+	// D shortcut can swap to NIGHT.SCR and restore the exact screen afterward.
+	standaloneDayScreenName = ""
 )
 
 type TCloudState struct {
@@ -287,6 +290,54 @@ func islandCycleDayNight() string {
 		return islandSetDayNightOverride(-1)
 	}
 
+}
+
+func islandStandaloneScreen(screenName string) string {
+	switch screenName {
+	case "OCEAN00.SCR", "OCEAN01.SCR", "OCEAN02.SCR", "ISLETEMP.SCR":
+		standaloneDayScreenName = screenName
+		if currentContent != "" && islandState.night != 0 {
+			return "NIGHT.SCR"
+		}
+	}
+	return screenName
+}
+
+func islandResetStandaloneSkyAssets() {
+	for _, count := range ttmBackgroundSlot.numSprites {
+		if count != 0 {
+			ttmResetSlot(&ttmBackgroundSlot)
+			ttmInitSlot(&ttmBackgroundSlot)
+			return
+		}
+	}
+}
+
+func islandDrawStandaloneNightIsland() {
+	islandResetStandaloneSkyAssets()
+	grLoadBmp(&ttmBackgroundSlot, 0, "BACKGRND.BMP")
+	grDx, grDy = 0, 0
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 288, 279, 0, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 442, 148, 13, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 365, 122, 12, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 396, 279, 14, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 270, 306, 3, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 364, 319, 6, 0)
+	grDrawSprite(grBackgroundSur, &ttmBackgroundSlot, 518, 303, 9, 0)
+}
+
+func islandApplyStandaloneDayNight() bool {
+	if currentContent == "" || standaloneDayScreenName == "" {
+		return false
+	}
+	if islandState.night != 0 {
+		grLoadScreen("NIGHT.SCR")
+		islandDrawStandaloneNightIsland()
+	} else {
+		islandResetStandaloneSkyAssets()
+		grLoadScreen(standaloneDayScreenName)
+	}
+	return true
 }
 
 func islandSetDayNightOverride(dayNightOverride int) string {

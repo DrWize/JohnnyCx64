@@ -190,6 +190,37 @@ func TestDayNightKeyboardAndSettingsCycle(t *testing.T) {
 	}
 }
 
+func TestStandaloneIslandScreenFollowsDayNightOverride(t *testing.T) {
+	oldContent := currentContent
+	oldNight := islandState.night
+	oldScreen := standaloneDayScreenName
+	t.Cleanup(func() {
+		currentContent = oldContent
+		islandState.night = oldNight
+		standaloneDayScreenName = oldScreen
+	})
+
+	currentContent = "GJGULIVR.TTM"
+	islandState.night = 1
+	if got := islandStandaloneScreen("OCEAN01.SCR"); got != "NIGHT.SCR" {
+		t.Fatalf("night standalone screen = %q, want NIGHT.SCR", got)
+	}
+	if standaloneDayScreenName != "OCEAN01.SCR" {
+		t.Fatalf("remembered day screen = %q, want OCEAN01.SCR", standaloneDayScreenName)
+	}
+	if got := islandStandaloneScreen("ISLETEMP.SCR"); got != "NIGHT.SCR" {
+		t.Fatalf("Lilliput night screen = %q, want NIGHT.SCR", got)
+	}
+
+	islandState.night = 0
+	if got := islandStandaloneScreen("OCEAN02.SCR"); got != "OCEAN02.SCR" {
+		t.Fatalf("day standalone screen = %q, want OCEAN02.SCR", got)
+	}
+	if got := islandStandaloneScreen("CITY.SCR"); got != "CITY.SCR" {
+		t.Fatalf("non-island screen = %q, want unchanged CITY.SCR", got)
+	}
+}
+
 func TestDayNightShortcutUsesCapturedKey(t *testing.T) {
 	if !menuKeyPressed(rl.KeyD, rl.KeyD) {
 		t.Fatal("captured D key should activate the day/night shortcut")
@@ -663,12 +694,20 @@ func TestStandaloneCompositeEventsKeepADSCompanions(t *testing.T) {
 		{name: "GJGULIVR.TTM", tag: 15, companions: []uint16{14}},
 		{name: "GJGULIVR.TTM", tag: 9, companions: []uint16{58, 12}},
 		{name: "GJGULIVR.TTM", tag: 67, companions: []uint16{60}},
+		{name: "GJGULL1.TTM", tag: 26, companions: []uint16{41}},
+		{name: "GJGULL1.TTM", tag: 46, companions: []uint16{35}},
+		{name: "GJLILIPU.TTM", tag: 20, companions: []uint16{24}},
+		{name: "GJLILIPU.TTM", tag: 25, companions: []uint16{20}},
+		{name: "GJLILIPU.TTM", tag: 26, companions: []uint16{20, 25}},
 		{name: "GJVIS3.TTM", tag: 52, companions: []uint16{44}},
 		{name: "GJVIS5.TTM", tag: 7, companions: []uint16{1, 9}},
+		{name: "GJVIS5W.TTM", tag: 3, companions: []uint16{1}},
 		{name: "GJVIS6.TTM", tag: 5, companions: []uint16{4, 9}},
 		{name: "GJDIVE.TTM", tag: 13, companions: []uint16{12}},
 		{name: "GJNAT3.TTM", tag: 16, companions: []uint16{18}},
 		{name: "MJCOCO.TTM", tag: 18, companions: []uint16{17, 33}},
+		{name: "MJCOCO1.TTM", tag: 18, companions: []uint16{17}},
+		{name: "MJCOCO1.TTM", tag: 20, companions: []uint16{19}},
 		{name: "MJFISH.TTM", tag: 44, companions: []uint16{1, 43}},
 		{name: "MJFISHC.TTM", tag: 58, companions: []uint16{43, 62}},
 		{name: "MJBATH.TTM", tag: 24, companions: []uint16{42, 20, 30, 19, 14, 23}},
@@ -707,6 +746,69 @@ func TestStandaloneCompositeEventTagsExist(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+func TestStandaloneADSEventCatalog(t *testing.T) {
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
+
+	tests := []struct {
+		name  string
+		count int
+		ads   string
+	}{
+		{name: "GJGULIVR.TTM", count: 3, ads: "BUILDING.ADS"},
+		{name: "MJFISH.TTM", count: 4, ads: "FISHING.ADS"},
+		{name: "THEEND.TTM", count: 1, ads: "JOHNNY.ADS"},
+		{name: "MEANWHIL.TTM", count: 4},
+		{name: "GJLILIPU.TTM", count: 0},
+	}
+	for _, test := range tests {
+		events := standaloneADSEventsForTTM(test.name)
+		if len(events) != test.count {
+			t.Errorf("%s ADS events = %d, want %d", test.name, len(events), test.count)
+		}
+		lastStoryIndex := -1
+		for _, event := range events {
+			if test.ads != "" && event.adsName != test.ads {
+				t.Errorf("%s event uses %s, want %s", test.name, event.adsName, test.ads)
+			}
+			if event.description == "" {
+				t.Errorf("%s event %s:%d has no display description", test.name, event.adsName, event.tag)
+			}
+			storyIndex := -1
+			for index, scene := range storyScenes {
+				if scene.adsName == event.adsName && uint16(scene.adsTagNo) == event.tag {
+					storyIndex = index
+					break
+				}
+			}
+			if storyIndex <= lastStoryIndex {
+				t.Errorf("%s events are not in original story order at %s:%d", test.name, event.adsName, event.tag)
+			}
+			lastStoryIndex = storyIndex
+		}
+	}
+}
+
+func TestStandaloneNextEventSelectionWraps(t *testing.T) {
+	dataDirectory := resetEmbeddedResourcesForTest(t)
+	parseResourceFiles(filepath.Join(dataDirectory, "RESOURCE.MAP"))
+	oldTarget, oldIndex := standaloneEventTarget, standaloneEventIndex
+	t.Cleanup(func() { standaloneEventTarget, standaloneEventIndex = oldTarget, oldIndex })
+	standaloneResetEventMode()
+
+	first, number, total, ok := standaloneSelectNextEvent("GJGULIVR.TTM")
+	if !ok || number != 1 || total != 3 {
+		t.Fatalf("first Gulliver event = (%d/%d, %t), want 1/3", number, total, ok)
+	}
+	for range total {
+		standaloneSelectNextEvent("GJGULIVR.TTM")
+	}
+	wrapped, number, _, ok := standaloneSelectedEvent("GJGULIVR.TTM")
+	if !ok || number != 1 || wrapped.adsName != first.adsName || wrapped.tag != first.tag {
+		t.Fatalf("wrapped event = %#v (%d, %t), want first %#v", wrapped, number, ok, first)
 	}
 }
 
